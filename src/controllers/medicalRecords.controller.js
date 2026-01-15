@@ -1,0 +1,235 @@
+/**
+ * Medical Records Controller
+ * Handles CRUD operations for medical records
+ * Security: Enforces role, ownership, and consent checks
+ */
+
+import { supabase } from '../config/supabaseClient.js';
+import { ApiResponse } from '../utils/errors.js';
+import { NotFoundError, UnauthorizedError, OwnershipError } from '../utils/errors.js';
+import { asyncHandler } from '../middleware/errorHandler.middleware.js';
+
+/**
+ * CREATE Medical Record
+ * POST /api/medical-records
+ * 
+ * Security:
+ * - Requires doctor role
+ * - Automatically sets created_by and updated_by
+ * - Logs creation in audit trail
+ */
+export const createMedicalRecord = asyncHandler(async (req, res) => {
+  const { patient_id, diagnosis, prescription, notes } = req.body;
+
+  // Verify patient exists
+  const { data: patient, error: patientError } = await supabase
+    .from('patients')
+    .select('id')
+    .eq('id', patient_id)
+    .single();
+
+  if (patientError || !patient) {
+    throw new NotFoundError('Patient');
+  }
+
+  // Create medical record
+  const { data: record, error } = await supabase
+    .from('medical_records')
+    .insert({
+      patient_id,
+      doctor_id: req.doctorId, // Set from requireDoctor middleware
+      diagnosis,
+      prescription,
+      notes,
+      created_by: req.user.id,
+      updated_by: req.user.id
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return ApiResponse.created(res, record, 'Medical record created successfully');
+});
+
+/**
+ * GET Medical Records for a Patient
+ * GET /api/medical-records/patient/:patientId
+ * 
+ * Security:
+ * - Patient can access own records
+ * - Doctor/Nurse require consent
+ * - Admin can access all
+ */
+export const getPatientMedicalRecords = asyncHandler(async (req, res) => {
+  const { patientId } = req.params;
+
+  // Verify patient exists
+  const { data: patient, error: patientError } = await supabase
+    .from('patients')
+    .select('id, name')
+    .eq('id', patientId)
+    .single();
+
+  if (patientError || !patient) {
+    throw new NotFoundError('Patient');
+  }
+
+  // Get medical records
+  const { data: records, error } = await supabase
+    .from('medical_records')
+    .select(`
+      id,
+      diagnosis,
+      prescription,
+      notes,
+      created_at,
+      updated_at,
+      doctor_id,
+      doctors (
+        id,
+        name,
+        specialization
+      )
+    `)
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return ApiResponse.success(res, {
+    patient: {
+      id: patient.id,
+      name: patient.name
+    },
+    records: records || [],
+    total: records?.length || 0,
+    consent_status: {
+      checked: req.consentChecked,
+      granted: req.consentGranted,
+      reason: req.consentReason
+    }
+  });
+});
+
+/**
+ * GET Single Medical Record
+ * GET /api/medical-records/:recordId
+ * 
+ * Security:
+ * - Requires consent check
+ * - Enforces ownership rules
+ */
+export const getMedicalRecord = asyncHandler(async (req, res) => {
+  const { recordId } = req.params;
+
+  const { data: record, error } = await supabase
+    .from('medical_records')
+    .select(`
+      id,
+      patient_id,
+      diagnosis,
+      prescription,
+      notes,
+      created_at,
+      updated_at,
+      doctor_id,
+      doctors (
+        id,
+        name,
+        specialization
+      ),
+      patients (
+        id,
+        name
+      )
+    `)
+    .eq('id', recordId)
+    .single();
+
+  if (error || !record) {
+    throw new NotFoundError('Medical record');
+  }
+
+  return ApiResponse.success(res, record);
+});
+
+/**
+ * UPDATE Medical Record
+ * PUT /api/medical-records/:recordId
+ * 
+ * Security:
+ * - Only doctor who created can update
+ * - Enforced by requireRecordOwnership middleware
+ */
+export const updateMedicalRecord = asyncHandler(async (req, res) => {
+  const { recordId } = req.params;
+  const { diagnosis, prescription, notes } = req.body;
+
+  // Build update object (only include provided fields)
+  const updates = {
+    updated_by: req.user.id,
+    updated_at: new Date().toISOString()
+  };
+
+  if (diagnosis !== undefined) updates.diagnosis = diagnosis;
+  if (prescription !== undefined) updates.prescription = prescription;
+  if (notes !== undefined) updates.notes = notes;
+
+  // Update record
+  const { data: record, error } = await supabase
+    .from('medical_records')
+    .update(updates)
+    .eq('id', recordId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return ApiResponse.success(res, record, 'Medical record updated successfully');
+});
+
+/**
+ * GET My Medical Records (Patient View)
+ * GET /api/medical-records/me
+ * 
+ * Security:
+ * - Patient can only see their own records
+ */
+export const getMyMedicalRecords = asyncHandler(async (req, res) => {
+  // patientId is set by requirePatientOrAdmin middleware
+  const patientId = req.patientId;
+
+  const { data: records, error } = await supabase
+    .from('medical_records')
+    .select(`
+      id,
+      diagnosis,
+      prescription,
+      notes,
+      created_at,
+      updated_at,
+      doctors (
+        id,
+        name,
+        specialization
+      )
+    `)
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return ApiResponse.success(res, {
+    records: records || [],
+    total: records?.length || 0
+  });
+});

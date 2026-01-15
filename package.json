@@ -11,6 +11,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "postgres": "^3.4.8"
   },
   "main": "index.js",
