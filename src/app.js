@@ -82,13 +82,11 @@ app.use('/api/patients', patientsRoutes) // Legacy patient routes
 app.use('/api/medical-records', apiLimiter, medicalRecordsRoutes)
 app.use('/api/appointments', apiLimiter, appointmentsRoutes)
 app.use('/api/consent', consentLimiter, consentRoutes)
-<<<<<<< HEAD
+
 app.use('/api/audit', apiLimiter, auditRoutes)
-=======
-app.use('/api/audit', authLimiter, auditRoutes)
 app.use('/api/visits', authLimiter, visitsRoutes) // EPIC 3: Clinical Records
 app.use('/api/prescriptions', authLimiter, prescriptionsRoutes) // EPIC 3: Treatment Workflow
->>>>>>> ccffe3c4e76f14e5fba92a18e0ea124f69d471a9
+
 
 // ============================================================================
 // ERROR HANDLING

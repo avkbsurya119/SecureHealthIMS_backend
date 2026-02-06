@@ -73,10 +73,10 @@ export const schemas = {
       appointment_time: { required: true, type: 'time' }
     },
     updateStatus: {
-      status: { 
-        required: true, 
-        type: 'enum', 
-        values: ['scheduled', 'completed', 'cancelled'] 
+      status: {
+        required: true,
+        type: 'enum',
+        values: ['scheduled', 'completed', 'cancelled']
       },
       cancellation_reason: { required: false, type: 'string', maxLength: 500 }
     }
@@ -93,7 +93,7 @@ export const schemas = {
     }
   },
 
-<<<<<<< HEAD
+
   // Authentication
   auth: {
     register: {
@@ -113,7 +113,9 @@ export const schemas = {
     login: {
       email: { required: true, type: 'email' },
       password: { required: true, type: 'string' }
-=======
+    }
+  },
+
   // Visits (EPIC 3)
   visit: {
     create: {
@@ -152,7 +154,6 @@ export const schemas = {
       frequency: { required: false, type: 'string', minLength: 1, maxLength: 100 },
       duration: { required: false, type: 'string', maxLength: 100 },
       notes: { required: false, type: 'string', maxLength: 1000 }
->>>>>>> ccffe3c4e76f14e5fba92a18e0ea124f69d471a9
     }
   }
 };
@@ -271,7 +272,7 @@ export const validateUUID = (paramName = 'id') => {
  */
 export function sanitizeString(str) {
   if (typeof str !== 'string') return str;
-  
+
   return str
     .replace(/[<>]/g, '') // Remove angle brackets
     .trim();

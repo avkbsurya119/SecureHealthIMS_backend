@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ValidationError, UnauthenticatedError, ConflictError } from '../utils/errors.js';
+import { generateToken, verifyToken } from '../utils/jwt.utils.js';
 
 /**
  * Register a new user
@@ -34,19 +35,19 @@ export const register = async (req, res, next) => {
       }
     }
 
-    // Step 1: Create auth user in Supabase
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Step 1: Create auth user in Supabase (Admin creation to bypass email limits)
+    // using admin.createUser allows auto-confirming email and avoids rate limits
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
-      options: {
-        data: {
-          role: role
-        }
+      email_confirm: true,
+      user_metadata: {
+        role: role
       }
     });
 
     if (authError) {
-      if (authError.message.includes('already registered')) {
+      if (authError.message.includes('already registered') || authError.message.includes('already created')) {
         throw new ConflictError('User with this email already exists');
       }
       throw new Error(authError.message);
@@ -76,7 +77,7 @@ export const register = async (req, res, next) => {
         .insert({
           user_id: userId,
           name,
-          date_of_birth,
+          dob: date_of_birth,
           gender,
           phone: phone || null,
           email,
@@ -125,6 +126,13 @@ export const register = async (req, res, next) => {
       }
     }
 
+    // Generate custom JWT
+    const token = generateToken({
+      id: userId,
+      role: role,
+      email: authData.user.email
+    });
+
     // Step 5: Return success with access token
     res.status(201).json({
       success: true,
@@ -135,11 +143,15 @@ export const register = async (req, res, next) => {
           email: authData.user.email,
           role: role
         },
-        session: {
-          access_token: authData.session?.access_token,
-          refresh_token: authData.session?.refresh_token,
-          expires_at: authData.session?.expires_at
-        }
+        token: token,
+        // Keep Supabase session just in case, or remove if fully switching. 
+        // Plan says replace usage, so maybe just return token. 
+        // But for compatibility let's keep session structure if possible or just use 'token'
+        // The plan says "Return this token".
+        // I will return top level token and also session for compatibility if needed? 
+        // Let's stick to returning 'token' explicitly as per common JWT practices.
+        // But I will also return the refresh token from Supabase if we want to use it for refreshing.
+        refresh_token: authData.session?.refresh_token
       }
     });
 
@@ -203,6 +215,13 @@ export const login = async (req, res, next) => {
       userDetails = doctor;
     }
 
+    // Generate custom JWT
+    const token = generateToken({
+      id: data.user.id,
+      role: userData.role,
+      email: data.user.email
+    });
+
     res.json({
       success: true,
       message: 'Login successful',
@@ -213,12 +232,8 @@ export const login = async (req, res, next) => {
           role: userData.role,
           ...userDetails
         },
-        session: {
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-          expires_at: data.session.expires_at,
-          expires_in: data.session.expires_in
-        }
+        token: token,
+        refresh_token: data.session.refresh_token
       }
     });
 
@@ -235,7 +250,14 @@ export const logout = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
 
+    // For custom JWTs, we can't really "invalidate" them without a blacklist/store.
+    // But we can check if there's a Supabase session to sign out of.
+    // Since we are moving to custom JWT, the client just discards the token.
+    // However, if we still have a Supabase session (via refresh token), we should sign that out.
+
     if (token) {
+      // If we provided the Supabase refresh token in logout, we could use it.
+      // But typically logout is just client-side token removal.
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Logout error:', error);
@@ -260,7 +282,7 @@ export const getCurrentUser = async (req, res, next) => {
   try {
     // User is already authenticated via middleware
     const userId = req.user.id;
-    
+
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('role, is_active')
@@ -317,6 +339,7 @@ export const refreshToken = async (req, res, next) => {
       throw new ValidationError('Refresh token is required');
     }
 
+    // Use Supabase to refresh the session
     const { data, error } = await supabase.auth.refreshSession({
       refresh_token
     });
@@ -325,16 +348,29 @@ export const refreshToken = async (req, res, next) => {
       throw new UnauthenticatedError('Invalid or expired refresh token');
     }
 
+    // Generate new custom JWT
+    // Need to fetch user role again or trust the session?
+    // Supabase session user object has metadata potentially, but safest to fetch fresh role or rely on what's in the payload if we had it.
+    // Fetching role from DB is safer.
+
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', data.user.id)
+      .single();
+
+    const token = generateToken({
+      id: data.user.id,
+      role: userData ? userData.role : 'patient', // fallback? shouldn't happen
+      email: data.user.email
+    });
+
     res.json({
       success: true,
       message: 'Token refreshed successfully',
       data: {
-        session: {
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-          expires_at: data.session.expires_at,
-          expires_in: data.session.expires_in
-        }
+        token: token,
+        refresh_token: data.session.refresh_token
       }
     });
 

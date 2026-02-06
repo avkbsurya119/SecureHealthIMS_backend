@@ -7,6 +7,7 @@
 import { supabase } from '../config/supabaseClient.js';
 import { UnauthenticatedError } from '../utils/errors.js';
 import { asyncHandler } from './errorHandler.middleware.js';
+import { verifyToken } from '../utils/jwt.utils.js';
 
 /**
  * Verify JWT token and attach user to request
@@ -19,25 +20,27 @@ import { asyncHandler } from './errorHandler.middleware.js';
 export const authenticate = asyncHandler(async (req, res, next) => {
   // Extract token from Authorization header
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new UnauthenticatedError('Access token required');
   }
 
   const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-  // Verify token with Supabase
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
+  // Verify custom JWT
+  let payload;
+  try {
+    payload = verifyToken(token);
+  } catch (err) {
     throw new UnauthenticatedError('Invalid or expired token');
   }
 
   // Get user details from users table (includes role and is_active)
+  // We can trust the payload for ID, but let's check DB for is_active and role to ensure they are up to date
   const { data: userDetails, error: userError } = await supabase
     .from('users')
     .select('id, role, is_active, created_at')
-    .eq('id', user.id)
+    .eq('id', payload.id)
     .single();
 
   if (userError || !userDetails) {
@@ -52,7 +55,7 @@ export const authenticate = asyncHandler(async (req, res, next) => {
   // Attach user info to request for use in subsequent middleware/controllers
   req.user = {
     id: userDetails.id,
-    email: user.email,
+    email: payload.email,
     role: userDetails.role,
     is_active: userDetails.is_active
   };
@@ -76,19 +79,19 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
 
   try {
     const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const payload = verifyToken(token);
 
-    if (!error && user) {
+    if (payload) {
       const { data: userDetails } = await supabase
         .from('users')
         .select('id, role, is_active')
-        .eq('id', user.id)
+        .eq('id', payload.id)
         .single();
 
       if (userDetails && userDetails.is_active) {
         req.user = {
           id: userDetails.id,
-          email: user.email,
+          email: payload.email,
           role: userDetails.role,
           is_active: userDetails.is_active
         };
