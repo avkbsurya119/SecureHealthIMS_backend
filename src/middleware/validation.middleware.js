@@ -91,8 +91,36 @@ export const schemas = {
         values: ['medical_records', 'data_sharing', 'research', 'marketing', 'emergency_contact']
       }
     }
+  },
+
+  // Authentication
+  auth: {
+    register: {
+      email: { required: true, type: 'email' },
+      password: { required: true, type: 'string', minLength: 8, maxLength: 100 },
+      role: { required: true, type: 'enum', values: ['patient', 'doctor'] },
+      name: { required: true, type: 'string', minLength: 2, maxLength: 100 },
+      phone: { required: false, type: 'string', maxLength: 20 },
+      // Patient-specific
+      date_of_birth: { required: false, type: 'date' },
+      gender: { required: false, type: 'enum', values: ['male', 'female', 'other'] },
+      address: { required: false, type: 'string', maxLength: 500 },
+      // Doctor-specific
+      specialization: { required: false, type: 'string', maxLength: 100 },
+      department_id: { required: false, type: 'uuid' }
+    },
+    login: {
+      email: { required: true, type: 'email' },
+      password: { required: true, type: 'string' }
+    }
   }
 };
+
+/**
+ * Validator shortcuts for controllers
+ */
+validators.register = schemas.auth.register;
+validators.login = schemas.auth.login;
 
 /**
  * Validate a value against schema rules

@@ -58,6 +58,16 @@ export class ValidationError extends ApiError {
 }
 
 /**
+ * 409 Conflict - Resource already exists
+ */
+export class ConflictError extends ApiError {
+  constructor(message = 'Resource already exists') {
+    super(message, 409);
+    this.name = 'ConflictError';
+  }
+}
+
+/**
  * 403 Consent Required - Patient hasn't granted consent
  */
 export class ConsentRequiredError extends ApiError {

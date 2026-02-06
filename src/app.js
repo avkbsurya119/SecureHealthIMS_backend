@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit'
 
 // Import routes
 import healthRoutes from './routes/health.routes.js'
+import authRoutes from './routes/auth.routes.js'
 import patientsRoutes from './routes/patients.routes.js'
 import medicalRecordsRoutes from './routes/medicalRecords.routes.js'
 import appointmentsRoutes from './routes/appointments.routes.js'
@@ -43,6 +44,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 // Rate limiting for authentication and sensitive endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 login/register attempts per 15 minutes
+  message: 'Too many authentication attempts from this IP, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true // Don't count successful requests
+})
+
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
@@ -62,13 +73,14 @@ const consentLimiter = rateLimit({
 
 // Public routes (no authentication required)
 app.use('/api/health', healthRoutes)
+app.use('/api/auth', authLimiter, authRoutes) // Authentication routes with strict rate limiting
 
 // Protected routes (authentication required - enforced within routes)
 app.use('/api/patients', patientsRoutes) // Legacy patient routes
-app.use('/api/medical-records', authLimiter, medicalRecordsRoutes)
-app.use('/api/appointments', authLimiter, appointmentsRoutes)
+app.use('/api/medical-records', apiLimiter, medicalRecordsRoutes)
+app.use('/api/appointments', apiLimiter, appointmentsRoutes)
 app.use('/api/consent', consentLimiter, consentRoutes)
-app.use('/api/audit', authLimiter, auditRoutes)
+app.use('/api/audit', apiLimiter, auditRoutes)
 
 // ============================================================================
 // ERROR HANDLING
