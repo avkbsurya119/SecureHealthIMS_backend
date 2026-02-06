@@ -6,7 +6,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
+import { authLimiter, apiLimiter, consentLimiter } from './middleware/rateLimit.middleware.js'
 
 // Import routes
 import healthRoutes from './routes/health.routes.js'
@@ -44,41 +44,18 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Rate limiting for authentication and sensitive endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 login/register attempts per 15 minutes
-  message: 'Too many authentication attempts from this IP, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true // Don't count successful requests
-})
 
-// General API rate limiter
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false
-})
-
-// Strict rate limiting for consent changes
-const consentLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 50,
-  message: 'Too many consent changes, please try again later'
-})
 
 // ============================================================================
 // API ROUTES
 // ============================================================================
 
 // Public routes (no authentication required)
-app.use('/api/health', healthRoutes)
+app.use('/api/health', apiLimiter, healthRoutes)
 app.use('/api/auth', authLimiter, authRoutes) // Authentication routes with strict rate limiting
 
 // Protected routes (authentication required - enforced within routes)
-app.use('/api/patients', patientsRoutes) // Legacy patient routes
+app.use('/api/patients', apiLimiter, patientsRoutes) // Legacy patient routes
 app.use('/api/medical-records', apiLimiter, medicalRecordsRoutes)
 app.use('/api/appointments', apiLimiter, appointmentsRoutes)
 app.use('/api/consent', consentLimiter, consentRoutes)
