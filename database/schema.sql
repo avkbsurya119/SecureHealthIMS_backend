@@ -116,3 +116,10 @@ create table if not exists users (
   ) not null,
   created_at timestamp default now()
 );
+
+ALTER TABLE patients 
+ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE patients 
+ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE doctors 
+ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
