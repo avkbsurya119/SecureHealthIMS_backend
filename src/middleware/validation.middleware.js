@@ -93,6 +93,7 @@ export const schemas = {
     }
   },
 
+<<<<<<< HEAD
   // Authentication
   auth: {
     register: {
@@ -112,6 +113,46 @@ export const schemas = {
     login: {
       email: { required: true, type: 'email' },
       password: { required: true, type: 'string' }
+=======
+  // Visits (EPIC 3)
+  visit: {
+    create: {
+      patient_id: { required: true, type: 'uuid' },
+      doctor_id: { required: true, type: 'uuid' },
+      visit_date: { required: true, type: 'date' },
+      visit_time: { required: true, type: 'time' },
+      chief_complaint: { required: false, type: 'string', maxLength: 500 },
+      findings: { required: false, type: 'string', maxLength: 2000 },
+      notes: { required: false, type: 'string', maxLength: 3000 }
+    },
+    update: {
+      visit_date: { required: false, type: 'date' },
+      visit_time: { required: false, type: 'time' },
+      chief_complaint: { required: false, type: 'string', maxLength: 500 },
+      findings: { required: false, type: 'string', maxLength: 2000 },
+      notes: { required: false, type: 'string', maxLength: 3000 }
+    }
+  },
+
+  // Prescriptions (EPIC 3)
+  prescription: {
+    create: {
+      patient_id: { required: true, type: 'uuid' },
+      doctor_id: { required: true, type: 'uuid' },
+      visit_id: { required: false, type: 'uuid' },
+      medication_name: { required: true, type: 'string', minLength: 1, maxLength: 200 },
+      dosage: { required: true, type: 'string', minLength: 1, maxLength: 100 },
+      frequency: { required: true, type: 'string', minLength: 1, maxLength: 100 },
+      duration: { required: false, type: 'string', maxLength: 100 },
+      notes: { required: false, type: 'string', maxLength: 1000 }
+    },
+    update: {
+      medication_name: { required: false, type: 'string', minLength: 1, maxLength: 200 },
+      dosage: { required: false, type: 'string', minLength: 1, maxLength: 100 },
+      frequency: { required: false, type: 'string', minLength: 1, maxLength: 100 },
+      duration: { required: false, type: 'string', maxLength: 100 },
+      notes: { required: false, type: 'string', maxLength: 1000 }
+>>>>>>> ccffe3c4e76f14e5fba92a18e0ea124f69d471a9
     }
   }
 };
