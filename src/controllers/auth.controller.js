@@ -126,34 +126,46 @@ export const register = async (req, res, next) => {
       }
     }
 
-    // Generate custom JWT
-    const token = generateToken({
-      id: userId,
-      role: role,
-      email: authData.user.email
-    });
+    // Check verification status before generating token
+    let isVerified = true;
+    if (role === 'doctor') {
+      isVerified = false; // Doctors are not verified by default
+    }
 
-    // Step 5: Return success with access token
-    res.status(201).json({
+    // Only generate token if verified
+    let token = null;
+    let refreshToken = null;
+
+    if (isVerified) {
+      token = generateToken({
+        id: userId,
+        role: role,
+        email: authData.user.email
+      });
+      refreshToken = authData.session?.refresh_token;
+    }
+
+    // Step 5: Return success
+    const responseData = {
       success: true,
-      message: `${role.charAt(0).toUpperCase() + role.slice(1)} registered successfully`,
+      message: isVerified
+        ? `${role.charAt(0).toUpperCase() + role.slice(1)} registered successfully`
+        : 'Registration successful. Account pending admin approval.',
       data: {
         user: {
           id: userId,
           email: authData.user.email,
           role: role
-        },
-        token: token,
-        // Keep Supabase session just in case, or remove if fully switching. 
-        // Plan says replace usage, so maybe just return token. 
-        // But for compatibility let's keep session structure if possible or just use 'token'
-        // The plan says "Return this token".
-        // I will return top level token and also session for compatibility if needed? 
-        // Let's stick to returning 'token' explicitly as per common JWT practices.
-        // But I will also return the refresh token from Supabase if we want to use it for refreshing.
-        refresh_token: authData.session?.refresh_token
+        }
       }
-    });
+    };
+
+    if (token) {
+      responseData.data.token = token;
+      responseData.data.refresh_token = refreshToken;
+    }
+
+    res.status(201).json(responseData);
 
   } catch (error) {
     next(error);
@@ -199,20 +211,28 @@ export const login = async (req, res, next) => {
 
     // Get additional user details based on role
     let userDetails = null;
+    let isVerified = true; // Default to true for roles that don't need verification (e.g. admin)
+
     if (userData.role === 'patient') {
       const { data: patient } = await supabase
         .from('patients')
-        .select('id, name, date_of_birth, gender, phone, address')
+        .select('id, name, date_of_birth, gender, phone, address, verified')
         .eq('user_id', data.user.id)
         .single();
       userDetails = patient;
+      isVerified = patient.verified;
     } else if (userData.role === 'doctor') {
       const { data: doctor } = await supabase
         .from('doctors')
-        .select('id, name, specialization, phone, department_id')
+        .select('id, name, specialization, phone, department_id, verified')
         .eq('user_id', data.user.id)
         .single();
       userDetails = doctor;
+      isVerified = doctor.verified;
+    }
+
+    if (isVerified === false) {
+      throw new UnauthenticatedError('Account pending approval');
     }
 
     // Generate custom JWT

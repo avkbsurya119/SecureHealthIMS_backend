@@ -18,6 +18,7 @@ import consentRoutes from './routes/consent.routes.js'
 import auditRoutes from './routes/audit.routes.js'
 import visitsRoutes from './routes/visits.routes.js'
 import prescriptionsRoutes from './routes/prescriptions.routes.js'
+import adminRoutes from './routes/admin.routes.js'
 
 // Import error handlers
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.middleware.js'
@@ -59,10 +60,10 @@ app.use('/api/patients', apiLimiter, patientsRoutes) // Legacy patient routes
 app.use('/api/medical-records', apiLimiter, medicalRecordsRoutes)
 app.use('/api/appointments', apiLimiter, appointmentsRoutes)
 app.use('/api/consent', consentLimiter, consentRoutes)
-
 app.use('/api/audit', apiLimiter, auditRoutes)
 app.use('/api/visits', authLimiter, visitsRoutes) // EPIC 3: Clinical Records
 app.use('/api/prescriptions', authLimiter, prescriptionsRoutes) // EPIC 3: Treatment Workflow
+app.use('/api/admin', authLimiter, adminRoutes) // Admin routes
 
 
 // ============================================================================
