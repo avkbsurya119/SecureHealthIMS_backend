@@ -1,6 +1,15 @@
 /**
  * Secure Healthcare Management System - Main Application
- * Backend API with RBAC, Consent Management, and Audit Logging
+ * 
+ * This is the central entry point for the SecureHealthIMS backend.
+ * It initializes the Express application, configures security middleware,
+ * sets up rate limiting, and mounts all API routes.
+ * 
+ * Architectural Features:
+ * - RBAC (Role-Based Access Control)
+ * - Consent Management Framework
+ * - Automated Audit Logging
+ * - HIPAA Compliance Guards
  */
 
 import express from 'express'
