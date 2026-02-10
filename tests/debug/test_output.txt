@@ -1,0 +1,1 @@
+uid=1000(vishnu) gid=1000(vishnu) groups=1000(vishnu),10(wheel),100(users),982(falcond)

@@ -28,11 +28,11 @@ const VALID_TRANSITIONS = {
  * - Automatically sets created_by
  */
 export const createAppointment = asyncHandler(async (req, res) => {
-  const { patient_id, doctor_id, appointment_date, appointment_time } = req.body;
+  const { patient_id, doctor_id, date, time } = req.body;
 
   // Verify patient exists
   const { data: patient, error: patientError } = await supabase
-    .from('patients')
+    .from('users')
     .select('id, name')
     .eq('id', patient_id)
     .single();
@@ -43,9 +43,10 @@ export const createAppointment = asyncHandler(async (req, res) => {
 
   // Verify doctor exists
   const { data: doctor, error: doctorError } = await supabase
-    .from('doctors')
+    .from('users')
     .select('id, name')
     .eq('id', doctor_id)
+    .eq('role', 'doctor')
     .single();
 
   if (doctorError || !doctor) {
@@ -58,16 +59,16 @@ export const createAppointment = asyncHandler(async (req, res) => {
     .insert({
       patient_id,
       doctor_id,
-      appointment_date,
-      appointment_time,
+      date,
+      time,
       status: 'scheduled',
       created_by: req.user.id,
       updated_by: req.user.id
     })
     .select(`
       *,
-      patients (id, name),
-      doctors (id, name, specialization)
+      users!appointments_patient_id_fkey (id, name),
+      users!appointments_doctor_id_fkey (id, name, specialization)
     `)
     .single();
 
@@ -97,41 +98,17 @@ export const getMyAppointments = asyncHandler(async (req, res) => {
 
   let query = supabase
     .from('appointments')
-    .select(`
-      *,
-      patients (id, name),
-      doctors (id, name, specialization)
-    `)
-    .order('appointment_date', { ascending: true })
-    .order('appointment_time', { ascending: true });
+    .select('*')
+    .order('date', { ascending: true })
+    .order('time', { ascending: true });
 
   // Filter by user role
   if (req.user.role === 'patient') {
     // Get patient's own appointments
-    const { data: patient } = await supabase
-      .from('patients')
-      .select('id')
-      .eq('user_id', req.user.id)
-      .single();
-
-    if (!patient) {
-      throw new UnauthorizedError('No patient record linked to this account');
-    }
-
-    query = query.eq('patient_id', patient.id);
+    query = query.eq('patient_id', req.user.id);
   } else if (req.user.role === 'doctor') {
     // Get doctor's appointments
-    const { data: doctor } = await supabase
-      .from('doctors')
-      .select('id')
-      .eq('user_id', req.user.id)
-      .single();
-
-    if (!doctor) {
-      throw new UnauthorizedError('No doctor record linked to this account');
-    }
-
-    query = query.eq('doctor_id', doctor.id);
+    query = query.eq('doctor_id', req.user.id);
   }
   // Admin sees all appointments (no additional filter)
 
@@ -141,24 +118,51 @@ export const getMyAppointments = asyncHandler(async (req, res) => {
   }
 
   if (from_date) {
-    query = query.gte('appointment_date', from_date);
+    query = query.gte('date', from_date);
   }
 
   if (to_date) {
-    query = query.lte('appointment_date', to_date);
+    query = query.lte('date', to_date);
   }
 
-  const { data: appointments, error } = await query;
+  const { data: appointmentsRaw, error } = await query;
 
   if (error) {
     throw error;
   }
 
+  // Optimize: Collect IDs and fetch once to avoid N+1 problem
+  const userIds = new Set();
+  (appointmentsRaw || []).forEach(a => {
+    if (a.patient_id) userIds.add(a.patient_id);
+    if (a.doctor_id) userIds.add(a.doctor_id);
+  });
+
+  let usersMap = {};
+  if (userIds.size > 0) {
+    const { data: users } = await supabase.from('users').select('id, name, specialization').in('id', Array.from(userIds));
+    if (users) {
+      users.forEach(u => usersMap[u.id] = u);
+    }
+  }
+
+  const finalAppointments = (appointmentsRaw || []).map(apt => {
+    const patient = usersMap[apt.patient_id] || { name: 'Unknown' };
+    const doctor = usersMap[apt.doctor_id] || { name: 'Unknown', specialization: '' };
+
+    return {
+      ...apt,
+      users: patient,
+      doctor_details: doctor
+    };
+  });
+
   return ApiResponse.success(res, {
-    appointments: appointments || [],
-    total: appointments?.length || 0
+    appointments: finalAppointments,
+    total: finalAppointments.length
   });
 });
+
 
 /**
  * GET Single Appointment
@@ -174,8 +178,8 @@ export const getAppointment = asyncHandler(async (req, res) => {
     .from('appointments')
     .select(`
       *,
-      patients (id, name, dob, phone),
-      doctors (id, name, specialization)
+      users!appointments_patient_id_fkey (id, name, dob, phone),
+      users!appointments_doctor_id_fkey (id, name, specialization)
     `)
     .eq('id', appointmentId)
     .single();
@@ -236,8 +240,8 @@ export const updateAppointmentStatus = asyncHandler(async (req, res) => {
     .eq('id', appointmentId)
     .select(`
       *,
-      patients (id, name),
-      doctors (id, name, specialization)
+      users!appointments_patient_id_fkey (id, name),
+      users!appointments_doctor_id_fkey (id, name, specialization)
     `)
     .single();
 
@@ -266,7 +270,7 @@ export const getPatientAppointments = asyncHandler(async (req, res) => {
 
   // Verify patient exists
   const { data: patient, error: patientError } = await supabase
-    .from('patients')
+    .from('users')
     .select('id, name')
     .eq('id', patientId)
     .single();
@@ -279,10 +283,10 @@ export const getPatientAppointments = asyncHandler(async (req, res) => {
     .from('appointments')
     .select(`
       *,
-      doctors (id, name, specialization)
+      users!appointments_doctor_id_fkey (id, name, specialization)
     `)
     .eq('patient_id', patientId)
-    .order('appointment_date', { ascending: false });
+    .order('date', { ascending: false });
 
   if (status) {
     query = query.eq('status', status);

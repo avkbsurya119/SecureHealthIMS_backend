@@ -4,6 +4,7 @@ import {
   login,
   logout,
   getCurrentUser,
+  updateProfile,
   refreshToken,
   forgotPassword,
   resetPassword
@@ -55,6 +56,17 @@ router.get(
   '/me',
   authenticate,
   getCurrentUser
+);
+
+/**
+ * @route   PUT /api/auth/profile
+ * @desc    Update current user profile
+ * @access  Private
+ */
+router.put(
+  '/profile',
+  authenticate,
+  updateProfile
 );
 
 /**

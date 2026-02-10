@@ -1,0 +1,4 @@
+--- Verifying Clinical Flow (Unified IDs) ---
+
+1. Creating Visit...
+Visit Creation FAILED: Could not find the 'diagnosis' column of 'visits' in the schema cache

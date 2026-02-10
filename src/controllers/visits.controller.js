@@ -1,102 +1,87 @@
-/**
- * Visits Controller (EPIC 3: Clinical Records & Treatment Workflow)
- * Handles CRUD operations for clinical visit records
- * Security: Enforces role-based access, ownership checks, and audit logging
- */
-
 import { supabase } from '../config/supabaseClient.js';
 import { ApiResponse } from '../utils/errors.js';
-import { NotFoundError, ValidationError, UnauthorizedError, OwnershipError } from '../utils/errors.js';
+import { NotFoundError, UnauthorizedError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 
 /**
- * CREATE Visit
- * POST /api/visits
+ * GET My Visits
+ * GET /api/visits/me
  * 
  * Security:
- * - Only doctors can create visits
- * - Automatically sets created_by from authenticated doctor
- * - Logs creation in audit trail
+ * - Patients can only see their own visits (enforced by req.user.id)
  */
-export const createVisit = asyncHandler(async (req, res) => {
-  const { patient_id, doctor_id, visit_date, visit_time, chief_complaint, findings, notes } = req.body;
+export const getMyVisits = asyncHandler(async (req, res) => {
+  const { from_date, to_date, limit = 10, offset = 0 } = req.query;
 
-  // Verify patient exists
-  const { data: patient, error: patientError } = await supabase
-    .from('patients')
-    .select('id, name')
-    .eq('id', patient_id)
-    .single();
+  // Verify patient exists linked to user
+  // (In unified schema, user IS the patient, but let's be safe)
 
-  if (patientError || !patient) {
-    throw new NotFoundError('Patient');
-  }
-
-  // Verify doctor exists
-  const { data: doctor, error: doctorError } = await supabase
-    .from('doctors')
-    .select('id, name, specialization')
-    .eq('id', doctor_id)
-    .single();
-
-  if (doctorError || !doctor) {
-    throw new NotFoundError('Doctor');
-  }
-
-  // Create visit record
-  const { data: visit, error } = await supabase
+  let query = supabase
     .from('visits')
-    .insert({
-      patient_id,
-      doctor_id,
-      visit_date,
-      visit_time,
-      chief_complaint,
-      findings,
-      notes,
-      created_by: doctor_id
-    })
     .select(`
       *,
-      patients (id, name, dob, gender),
-      doctors (id, name, specialization, department_id)
+      prescriptions (*)
     `)
-    .single();
+    .eq('patient_id', req.user.id)
+    .order('visit_date', { ascending: false });
+
+  if (from_date) {
+    query = query.gte('visit_date', from_date);
+  }
+
+  if (to_date) {
+    query = query.lte('visit_date', to_date);
+  }
+
+  // Pagination
+  query = query.range(offset, offset + limit - 1);
+
+  const { data: visitsRaw, error } = await query;
 
   if (error) {
     throw error;
   }
 
-  return ApiResponse.created(res, visit, 'Visit record created successfully');
+  // Manual Join for Doctor Details
+  const doctorIds = new Set();
+  visitsRaw.forEach(v => {
+    if (v.doctor_id) doctorIds.add(v.doctor_id);
+  });
+
+  let usersMap = {};
+  if (doctorIds.size > 0) {
+    const { data: doctors } = await supabase.from('users').select('id, name, specialization').in('id', Array.from(doctorIds));
+    if (doctors) {
+      doctors.forEach(d => usersMap[d.id] = d);
+    }
+  }
+
+  const visits = visitsRaw.map(v => ({
+    ...v,
+    doctor: usersMap[v.doctor_id] || { name: 'Unknown', specialization: '' }
+  }));
+
+  return ApiResponse.success(res, {
+    visits: visits || [],
+    count: visits?.length || 0
+  });
 });
 
 /**
- * GET Visit by ID
+ * GET Single Visit
  * GET /api/visits/:visitId
  * 
  * Security:
- * - Patient can view their own visit records
- * - Doctor can view visits they created
- * - Nurse can view (read-only)
- * - Admin can view all
+ * - Patients can only see their own visits
  */
 export const getVisitById = asyncHandler(async (req, res) => {
   const { visitId } = req.params;
 
-  // Get visit with relations
   const { data: visit, error } = await supabase
     .from('visits')
     .select(`
       *,
-      patients (id, name, dob, gender, phone, address),
-      doctors (id, name, specialization, department_id),
-      prescriptions (
-        id,
-        medication_name,
-        dosage,
-        frequency,
-        duration
-      )
+      prescriptions (*)
     `)
     .eq('id', visitId)
     .single();
@@ -105,114 +90,57 @@ export const getVisitById = asyncHandler(async (req, res) => {
     throw new NotFoundError('Visit');
   }
 
-  return ApiResponse.success(res, visit, 'Visit record retrieved successfully');
+  // Security Check:
+  // 1. If Patient: visit.patient_id must be me.
+  // 2. If Doctor: visit.doctor_id must be me OR (maybe future: I am treating this patient).
+  if (req.user.role === 'patient' && visit.patient_id !== req.user.id) {
+    throw new UnauthorizedError('You are not authorized to view this visit record');
+  }
+
+  if (req.user.role === 'doctor' && visit.doctor_id !== req.user.id) {
+    throw new UnauthorizedError('You are not authorized to view this visit record');
+  }
+
+  return ApiResponse.success(res, visit);
 });
 
 /**
- * GET Patient Visit History
- * GET /api/visits/patient/:patientId
+ * CREATE Visit
+ * POST /api/visits
  * 
  * Security:
- * - Patient can view their own visits
- * - Doctor can view patient visits (with consent)
- * - Nurse can view patient visits (read-only, with consent)
- * - Admin can view all
+ * - Doctors only
  */
-export const getPatientVisits = asyncHandler(async (req, res) => {
-  const { patientId } = req.params;
+export const createVisit = asyncHandler(async (req, res) => {
+  const { patient_id, visit_date, diagnosis, notes, prescription_id } = req.body;
 
-  // Verify patient exists
-  const { data: patient, error: patientError } = await supabase
-    .from('patients')
-    .select('id, name')
-    .eq('id', patientId)
-    .single();
-
-  if (patientError || !patient) {
-    throw new NotFoundError('Patient');
+  if (!patient_id || !visit_date) {
+    throw new Error('Patient ID and Visit Date are required');
   }
 
-  // Get visit history in chronological order
-  const { data: visits, error } = await supabase
+  const visitData = {
+    patient_id,
+    doctor_id: req.user.id, // Enforce doctor ownership
+    visit_date,
+    diagnosis,
+    notes
+    // prescription_id is optional link
+  };
+
+  const { data: newVisit, error } = await supabase
     .from('visits')
-    .select(`
-      id,
-      visit_date,
-      visit_time,
-      chief_complaint,
-      findings,
-      notes,
-      created_at,
-      updated_at,
-      doctor_id,
-      doctors (
-        id,
-        name,
-        specialization
-      )
-    `)
-    .eq('patient_id', patientId)
-    .order('visit_date', { ascending: false })
-    .order('visit_time', { ascending: false });
+    .insert(visitData)
+    .select()
+    .single();
 
   if (error) {
+    console.error('CRITICAL: Error creating visit record:');
+    console.error('Visit Data attempted:', JSON.stringify(visitData, null, 2));
+    console.error('Supabase Error:', error);
     throw error;
   }
 
-  return ApiResponse.success(res, visits, 'Patient visit history retrieved successfully');
-});
-
-/**
- * GET Doctor's Visit Records
- * GET /api/visits/doctor/:doctorId
- * 
- * Security:
- * - Doctor can view their own created records
- * - Admin can view all
- */
-export const getDoctorVisits = asyncHandler(async (req, res) => {
-  const { doctorId } = req.params;
-
-  // Verify doctor exists
-  const { data: doctor, error: doctorError } = await supabase
-    .from('doctors')
-    .select('id, name')
-    .eq('id', doctorId)
-    .single();
-
-  if (doctorError || !doctor) {
-    throw new NotFoundError('Doctor');
-  }
-
-  // Get visit records created by doctor
-  const { data: visits, error } = await supabase
-    .from('visits')
-    .select(`
-      id,
-      patient_id,
-      visit_date,
-      visit_time,
-      chief_complaint,
-      findings,
-      notes,
-      created_at,
-      updated_at,
-      patients (
-        id,
-        name,
-        dob,
-        gender
-      )
-    `)
-    .eq('created_by', doctorId)
-    .order('visit_date', { ascending: false })
-    .order('visit_time', { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return ApiResponse.success(res, visits, 'Doctor visit records retrieved successfully');
+  return ApiResponse.created(res, newVisit);
 });
 
 /**
@@ -220,91 +148,81 @@ export const getDoctorVisits = asyncHandler(async (req, res) => {
  * PUT /api/visits/:visitId
  * 
  * Security:
- * - Only the doctor who created the record can edit (3.6)
- * - Prevents other doctors from modifying records (3.6)
- * - Updates updated_at timestamp
+ * - Doctors can only update their OWN visits
  */
 export const updateVisit = asyncHandler(async (req, res) => {
   const { visitId } = req.params;
-  const { visit_date, visit_time, chief_complaint, findings, notes } = req.body;
+  const updates = req.body;
 
-  // Get existing visit to check ownership
-  const { data: visit, error: visitError } = await supabase
+  // 1. Fetch existing visit to check ownership
+  const { data: existingVisit, error: fetchError } = await supabase
     .from('visits')
-    .select('id, created_by')
+    .select('doctor_id')
     .eq('id', visitId)
     .single();
 
-  if (visitError || !visit) {
+  if (fetchError || !existingVisit) {
     throw new NotFoundError('Visit');
   }
 
-  // Check ownership - only creator can edit (3.6)
-  if (visit.created_by !== req.doctorId && req.user.role !== 'admin') {
-    throw new OwnershipError('You can only edit visit records you created');
+  // 2. Check ownership
+  if (existingVisit.doctor_id !== req.user.id) {
+    throw new UnauthorizedError('You are not authorized to update this visit record');
   }
 
-  // Update visit
-  const { data: updatedVisit, error } = await supabase
+  // 3. Remove sensitive/immutable fields from updates
+  delete updates.id;
+  delete updates.doctor_id; // Cannot change doctor
+  delete updates.patient_id; // Usually shouldn't change patient, but maybe? Let's disallow for now safety.
+
+  // 4. Update
+  const { data: updatedVisit, error: updateError } = await supabase
     .from('visits')
-    .update({
-      visit_date,
-      visit_time,
-      chief_complaint,
-      findings,
-      notes,
-      updated_at: new Date().toISOString()
-    })
+    .update(updates)
     .eq('id', visitId)
-    .select(`
-      *,
-      patients (id, name, dob, gender),
-      doctors (id, name, specialization)
-    `)
+    .select()
     .single();
 
-  if (error) {
-    throw error;
+  if (updateError) {
+    throw updateError;
   }
 
-  return ApiResponse.success(res, updatedVisit, 'Visit record updated successfully');
+  return ApiResponse.success(res, updatedVisit);
 });
 
 /**
- * DELETE Visit
- * DELETE /api/visits/:visitId
- * 
- * Security:
- * - Only the doctor who created the record or admin can delete
+ * GET Doctor Visits
+ * GET /api/visits/doctor/me
  */
-export const deleteVisit = asyncHandler(async (req, res) => {
-  const { visitId } = req.params;
-
-  // Get existing visit to check ownership
-  const { data: visit, error: visitError } = await supabase
+export const getDoctorVisits = asyncHandler(async (req, res) => {
+  const { data: visitsRaw, error } = await supabase
     .from('visits')
-    .select('id, created_by')
-    .eq('id', visitId)
-    .single();
-
-  if (visitError || !visit) {
-    throw new NotFoundError('Visit');
-  }
-
-  // Check ownership - only creator or admin can delete
-  if (visit.created_by !== req.doctorId && req.user.role !== 'admin') {
-    throw new OwnershipError('You can only delete visit records you created');
-  }
-
-  // Delete visit
-  const { error } = await supabase
-    .from('visits')
-    .delete()
-    .eq('id', visitId);
+    .select('*')
+    .eq('doctor_id', req.user.id)
+    .order('visit_date', { ascending: false });
 
   if (error) {
     throw error;
   }
 
-  return ApiResponse.success(res, { id: visitId }, 'Visit record deleted successfully');
+  // Manual Join for Patient Details
+  const patientIds = new Set();
+  visitsRaw.forEach(v => {
+    if (v.patient_id) patientIds.add(v.patient_id);
+  });
+
+  let usersMap = {};
+  if (patientIds.size > 0) {
+    const { data: patients } = await supabase.from('users').select('id, full_name, email').in('id', Array.from(patientIds));
+    if (patients) {
+      patients.forEach(p => usersMap[p.id] = p);
+    }
+  }
+
+  const visits = visitsRaw.map(v => ({
+    ...v,
+    users: usersMap[v.patient_id] || { full_name: 'Unknown', email: '' } // Mocking 'users' object
+  }));
+
+  return ApiResponse.success(res, visits);
 });

@@ -44,7 +44,7 @@ export class ConsentService {
       .in('consent_type', consentTypes);
 
     const consentMap = {};
-    
+
     // Initialize all to false (DEFAULT DENY)
     consentTypes.forEach(type => {
       consentMap[type] = false;
@@ -72,26 +72,49 @@ export class ConsentService {
   static async grantConsent(patientId, consentType, userId) {
     const now = new Date().toISOString();
 
-    const { data, error } = await supabase
+    // Check if consent exists
+    const { data: existing } = await supabase
       .from('patient_consents')
-      .upsert({
-        patient_id: patientId,
-        consent_type: consentType,
-        status: 'granted',
-        granted_at: now,
-        revoked_at: null,
-        updated_at: now
-      }, {
-        onConflict: 'patient_id,consent_type'
-      })
-      .select()
+      .select('id')
+      .eq('patient_id', patientId)
+      .eq('consent_type', consentType)
       .single();
 
-    if (error) {
-      throw error;
+    let result;
+
+    if (existing) {
+      // Update
+      const { data, error } = await supabase
+        .from('patient_consents')
+        .update({
+          status: 'granted',
+          granted_at: now,
+          denied_at: null // Clear denied_at if re-granting
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      result = data;
+    } else {
+      // Insert
+      const { data, error } = await supabase
+        .from('patient_consents')
+        .insert({
+          patient_id: patientId,
+          consent_type: consentType,
+          status: 'granted',
+          granted_at: now
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      result = data;
     }
 
-    return data;
+    return result;
   }
 
   /**
@@ -108,8 +131,7 @@ export class ConsentService {
       .from('patient_consents')
       .update({
         status: 'revoked',
-        revoked_at: now,
-        updated_at: now
+        denied_at: now
       })
       .eq('patient_id', patientId)
       .eq('consent_type', consentType)
@@ -152,7 +174,7 @@ export class ConsentService {
       .from('consent_history')
       .select('*')
       .eq('patient_id', patientId)
-      .order('changed_at', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) {
       throw error;

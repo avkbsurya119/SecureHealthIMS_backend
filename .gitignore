@@ -1,4 +1,21 @@
+# Dependency directories
 node_modules/
+.venv/
+
+# Compiled or generated files
+/build/
+/dist/
+*.class
+*.pyc
+
+# Log and temporary files
+*.log
+*.tmp
+
+# Sensitive data/credentials
 .env
-dist/
-.eslintrc
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/

@@ -41,8 +41,6 @@ export class AuditService {
           resource,
           resource_id: resourceId,
           ip_address: ipAddress,
-          user_agent: userAgent,
-          request_id: requestId,
           details: details ? JSON.stringify(details) : null
         })
         .select()
@@ -150,18 +148,18 @@ export class AuditService {
       .from('audit_logs')
       .select('*')
       .eq('patient_id', patientId)
-      .order('timestamp', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (action) {
       query = query.eq('action', action);
     }
 
     if (startDate) {
-      query = query.gte('timestamp', startDate);
+      query = query.gte('created_at', startDate);
     }
 
     if (endDate) {
-      query = query.lte('timestamp', endDate);
+      query = query.lte('created_at', endDate);
     }
 
     query = query.range(offset, offset + limit - 1);
@@ -194,7 +192,7 @@ export class AuditService {
     let query = supabase
       .from('audit_logs')
       .select('*')
-      .order('timestamp', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (action) {
       query = query.eq('action', action);
@@ -209,11 +207,11 @@ export class AuditService {
     }
 
     if (startDate) {
-      query = query.gte('timestamp', startDate);
+      query = query.gte('created_at', startDate);
     }
 
     if (endDate) {
-      query = query.lte('timestamp', endDate);
+      query = query.lte('created_at', endDate);
     }
 
     query = query.range(offset, offset + limit - 1);
@@ -234,9 +232,9 @@ export class AuditService {
   static async getPatientAccessSummary(patientId) {
     const { data, error } = await supabase
       .from('audit_logs')
-      .select('user_id, action, resource, timestamp')
+      .select('user_id, action, resource, created_at')
       .eq('patient_id', patientId)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) {

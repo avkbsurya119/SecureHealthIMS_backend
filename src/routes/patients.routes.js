@@ -1,52 +1,22 @@
-import express from 'express'
-import { supabase } from '../config/supabaseClient.js'
+import express from 'express';
+import { searchPatients, getPatientById, registerPatientAsUser, getMyPatientData } from '../controllers/patients.controller.js';
+import { authenticate, requireRole, authenticateSupabaseOnly } from '../middleware/auth.middleware.js';
 
-const router = express.Router()
+const router = express.Router();
 
-// GET all patients
-router.get('/', async (req, res) => {
-  const { data, error } = await supabase
-    .from('patients')
-    .select('*')
-    .order('created_at', { ascending: false })
+// Routes that work BEFORE user is in users table (Supabase auth only)
+router.get('/me', authenticateSupabaseOnly, getMyPatientData);
+router.post('/register-user', authenticateSupabaseOnly, registerPatientAsUser);
 
-  if (error) {
-    return res.status(500).json({ error: error.message })
-  }
+// Routes that require full authentication (user must be in users table)
+router.use(authenticate);
 
-  res.json(data)
-})
+// Search Patients (Doctor/Admin/Nurse only)
+router.get('/search', requireRole(['doctor', 'admin', 'nurse']), searchPatients);
 
-// GET single patient by ID
-router.get('/:id', async (req, res) => {
-  const { data, error } = await supabase
-    .from('patients')
-    .select('*')
-    .eq('id', req.params.id)
-    .single()
+// Get Patient by ID (Accessible to medical staff)
+// Note: Patients should access their own profile via /profile/me or /auth/me
+router.get('/:id', requireRole(['doctor', 'admin', 'nurse']), getPatientById);
 
-  if (error) {
-    return res.status(404).json({ error: 'Patient not found' })
-  }
+export default router;
 
-  res.json(data)
-})
-
-// POST create new patient
-router.post('/', async (req, res) => {
-  const { name, dob, gender, phone, address } = req.body
-
-  const { data, error } = await supabase
-    .from('patients')
-    .insert([{ name, dob, gender, phone, address }])
-    .select()
-    .single()
-
-  if (error) {
-    return res.status(400).json({ error: error.message })
-  }
-
-  res.status(201).json(data)
-})
-
-export default router

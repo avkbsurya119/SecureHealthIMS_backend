@@ -1,0 +1,30 @@
+--- TESTING REAL UID: 172c3b17-adb7-4e85-a9ce-c2043bb6ef3f ---
+SUCCESS! User record created: {
+  id: '172c3b17-adb7-4e85-a9ce-c2043bb6ef3f',
+  user_id: '172c3b17-adb7-4e85-a9ce-c2043bb6ef3f',
+  email: 'svvishnubuddy@gmail.com',
+  full_name: 'Test Real User',
+  phone: '1112223333',
+  date_of_birth: '1995-05-05',
+  gender: 'male',
+  address: null,
+  role: 'patient',
+  is_active: true,
+  profile_completed: true,
+  approval_status: 'approved',
+  allergies: null,
+  blood_group: null,
+  medical_history: null,
+  emergency_contact: null,
+  emergency_phone: null,
+  created_at: '2026-02-10T19:25:25.55498+00:00',
+  updated_at: '2026-02-10T19:25:25.55498+00:00',
+  specialization: null,
+  license_number: null,
+  education: null,
+  experience_years: null,
+  hospital_affiliation: null,
+  nursing_license: null,
+  department: null
+}
+--- TEST END ---

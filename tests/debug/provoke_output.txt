@@ -1,0 +1,7 @@
+--- PROVOKING ERROR ---
+ERROR CAPTURED:
+Code: 23503
+Message: insert or update on table "users" violates foreign key constraint "users_id_fkey"
+Details: Key (id)=(00000000-0000-0000-0000-000000000001) is not present in table "users".
+Hint: null
+--- PROVOKING END ---

@@ -27,11 +27,11 @@ export const authenticate = asyncHandler(async (req, res, next) => {
 
   const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-  // Verify custom JWT
-  let payload;
-  try {
-    payload = verifyToken(token);
-  } catch (err) {
+  // Verify SUPABASE JWT
+  // improved: use supabase.auth.getUser(token) to validation token & get user
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+  if (authError || !user) {
     throw new UnauthenticatedError('Invalid or expired token');
   }
 
@@ -39,8 +39,8 @@ export const authenticate = asyncHandler(async (req, res, next) => {
   // We can trust the payload for ID, but let's check DB for is_active and role to ensure they are up to date
   const { data: userDetails, error: userError } = await supabase
     .from('users')
-    .select('id, role, is_active, created_at')
-    .eq('id', payload.id)
+    .select('id, email, role, is_active, created_at')
+    .eq('id', user.id)
     .single();
 
   if (userError || !userDetails) {
@@ -55,9 +55,46 @@ export const authenticate = asyncHandler(async (req, res, next) => {
   // Attach user info to request for use in subsequent middleware/controllers
   req.user = {
     id: userDetails.id,
-    email: payload.email,
+    email: userDetails.email, // Use email from DB record
     role: userDetails.role,
     is_active: userDetails.is_active
+  };
+
+  req.token = token;
+
+  next();
+});
+
+/**
+ * Authenticate using only Supabase Auth (no users table check)
+ * Use this for endpoints that need to work BEFORE the user is in the users table
+ * (e.g., patient self-registration)
+ * 
+ * Adds to req object:
+ * - req.user: { id, email } (from Supabase Auth only)
+ * - req.token: Original JWT token
+ */
+export const authenticateSupabaseOnly = asyncHandler(async (req, res, next) => {
+  // Extract token from Authorization header
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new UnauthenticatedError('Access token required');
+  }
+
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+  // Verify SUPABASE JWT only - don't check users table
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+  if (authError || !user) {
+    throw new UnauthenticatedError('Invalid or expired token');
+  }
+
+  // Attach minimal user info from Supabase Auth
+  req.user = {
+    id: user.id,
+    email: user.email
   };
 
   req.token = token;
@@ -104,3 +141,23 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
 
   next();
 });
+
+/**
+ * Restrict access to specific roles
+ * @param {string|string[]} roles - Allowed role(s)
+ */
+export const requireRole = (roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      throw new UnauthenticatedError('User not authenticated');
+    }
+
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+
+    if (!allowedRoles.includes(req.user.role)) {
+      throw new UnauthenticatedError(`Role '${req.user.role}' is not authorized to access this resource`);
+    }
+
+    next();
+  };
+};

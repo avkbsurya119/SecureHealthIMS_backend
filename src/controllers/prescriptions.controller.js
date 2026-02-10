@@ -1,151 +1,76 @@
-/**
- * Prescriptions Controller (EPIC 3: Clinical Records & Treatment Workflow)
- * Handles CRUD operations for medication prescriptions
- * Security: Enforces validation, role-based access, and audit logging
- */
-
 import { supabase } from '../config/supabaseClient.js';
 import { ApiResponse } from '../utils/errors.js';
-import { NotFoundError, ValidationError, UnauthorizedError } from '../utils/errors.js';
+import { NotFoundError, UnauthorizedError, ValidationError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 
 /**
- * Validate dosage and medication fields (3.3)
- * Ensures data integrity for prescriptions
- */
-const validatePrescriptionFields = (medication_name, dosage, frequency) => {
-  if (!medication_name || medication_name.trim().length === 0) {
-    throw new ValidationError('Medication name is required');
-  }
-
-  if (!dosage || dosage.trim().length === 0) {
-    throw new ValidationError('Dosage is required');
-  }
-
-  if (!frequency || frequency.trim().length === 0) {
-    throw new ValidationError('Frequency is required');
-  }
-
-  // Additional validation: dosage format check
-  if (!/^[\d\.\s\w\/-]+$/.test(dosage)) {
-    throw new ValidationError('Dosage format is invalid');
-  }
-
-  if (!/^[\d\w\s,-]+$/i.test(frequency)) {
-    throw new ValidationError('Frequency format is invalid');
-  }
-};
-
-/**
- * CREATE Prescription
- * POST /api/prescriptions
+ * GET My Prescriptions
+ * GET /api/prescriptions/me
  * 
  * Security:
- * - Only doctors can create prescriptions (3.3)
- * - Validates dosage and medication fields (3.3)
- * - Links prescription to patient and visit (3.3)
- * - Logs creation in audit trail
+ * - Patients can only see their own prescriptions (enforced by req.user.id)
  */
-export const createPrescription = asyncHandler(async (req, res) => {
-  const { patient_id, doctor_id, visit_id, medication_name, dosage, frequency, duration, notes } = req.body;
+export const getMyPrescriptions = asyncHandler(async (req, res) => {
+  const { limit = 20, offset = 0 } = req.query;
 
-  // Validate prescription fields (3.3)
-  validatePrescriptionFields(medication_name, dosage, frequency);
-
-  // Verify patient exists
-  const { data: patient, error: patientError } = await supabase
-    .from('patients')
-    .select('id, name')
-    .eq('id', patient_id)
-    .single();
-
-  if (patientError || !patient) {
-    throw new NotFoundError('Patient');
-  }
-
-  // Verify doctor exists
-  const { data: doctor, error: doctorError } = await supabase
-    .from('doctors')
-    .select('id, name, specialization')
-    .eq('id', doctor_id)
-    .single();
-
-  if (doctorError || !doctor) {
-    throw new NotFoundError('Doctor');
-  }
-
-  // Verify visit exists if provided
-  if (visit_id) {
-    const { data: visit, error: visitError } = await supabase
-      .from('visits')
-      .select('id')
-      .eq('id', visit_id)
-      .single();
-
-    if (visitError || !visit) {
-      throw new NotFoundError('Visit');
-    }
-  }
-
-  // Create prescription linked to visit (3.3)
-  const { data: prescription, error } = await supabase
+  let query = supabase
     .from('prescriptions')
-    .insert({
-      patient_id,
-      doctor_id,
-      visit_id,
-      medication_name,
-      dosage,
-      frequency,
-      duration,
-      notes
-    })
     .select(`
       *,
-      patients (id, name),
-      doctors (id, name, specialization),
-      visits (
-        id,
-        visit_date,
-        chief_complaint
-      )
+      visits (visit_date)
     `)
-    .single();
+    .eq('patient_id', req.user.id)
+    .order('created_at', { ascending: false });
+
+  // Pagination
+  query = query.range(offset, offset + limit - 1);
+
+  const { data: prescriptionsRaw, error } = await query;
 
   if (error) {
     throw error;
   }
 
-  return ApiResponse.created(res, prescription, 'Prescription created successfully');
+  // Manual Join for Doctor Details
+  const doctorIds = new Set();
+  prescriptionsRaw.forEach(p => {
+    if (p.doctor_id) doctorIds.add(p.doctor_id);
+  });
+
+  let usersMap = {};
+  if (doctorIds.size > 0) {
+    const { data: doctors } = await supabase.from('users').select('id, name, specialization').in('id', Array.from(doctorIds));
+    if (doctors) {
+      doctors.forEach(d => usersMap[d.id] = d);
+    }
+  }
+
+  const prescriptions = prescriptionsRaw.map(p => ({
+    ...p,
+    users: usersMap[p.doctor_id] || { name: 'Unknown', specialization: '' } // Mocking 'users' object for doctor details
+  }));
+
+  return ApiResponse.success(res, {
+    prescriptions: prescriptions || [],
+    count: prescriptions?.length || 0
+  });
 });
 
 /**
- * GET Prescription by ID
+ * GET Single Prescription
  * GET /api/prescriptions/:prescriptionId
  * 
  * Security:
- * - Patient can view their own prescriptions (read-only, 3.4)
- * - Doctor can view prescriptions they created
- * - Nurse can view (read-only access, 3.5)
- * - Admin can view all
+ * - Patients can only see their own prescriptions
  */
 export const getPrescriptionById = asyncHandler(async (req, res) => {
   const { prescriptionId } = req.params;
 
-  // Get prescription with relations
   const { data: prescription, error } = await supabase
     .from('prescriptions')
     .select(`
       *,
-      patients (id, name, dob, gender, phone),
-      doctors (id, name, specialization, department_id),
-      visits (
-        id,
-        visit_date,
-        visit_time,
-        chief_complaint,
-        findings
-      )
+      visits (visit_date, findings)
     `)
     .eq('id', prescriptionId)
     .single();
@@ -154,112 +79,63 @@ export const getPrescriptionById = asyncHandler(async (req, res) => {
     throw new NotFoundError('Prescription');
   }
 
-  return ApiResponse.success(res, prescription, 'Prescription retrieved successfully');
+  // Security Check: Ensure belongs to user (Patient) or Creator (Doctor)
+  if (req.user.role === 'patient' && prescription.patient_id !== req.user.id) {
+    throw new UnauthorizedError('You are not authorized to view this prescription');
+  }
+
+  if (req.user.role === 'doctor' && prescription.doctor_id !== req.user.id) {
+    throw new UnauthorizedError('You are not authorized to view this prescription');
+  }
+
+  return ApiResponse.success(res, prescription);
 });
 
 /**
- * GET Patient Prescriptions
- * GET /api/prescriptions/patient/:patientId
+ * CREATE Prescription
+ * POST /api/prescriptions
  * 
  * Security:
- * - Patient can view their own prescriptions (read-only, 3.4)
- * - Doctor can view patient prescriptions (with consent)
- * - Nurse can view patient prescriptions (read-only, 3.5)
- * - Admin can view all
+ * - Doctors only
  */
-export const getPatientPrescriptions = asyncHandler(async (req, res) => {
-  const { patientId } = req.params;
+export const createPrescription = asyncHandler(async (req, res) => {
+  const { patient_id, medication_name, dosage, frequency, duration, instructions, notes, visit_id } = req.body;
 
-  // Verify patient exists
-  const { data: patient, error: patientError } = await supabase
-    .from('patients')
-    .select('id, name')
-    .eq('id', patientId)
-    .single();
-
-  if (patientError || !patient) {
-    throw new NotFoundError('Patient');
+  if (!patient_id || !medication_name || !dosage) {
+    throw new ValidationError('Patient ID, Medication Name, and Dosage are required');
   }
 
-  // Get patient prescriptions (3.4)
-  const { data: prescriptions, error } = await supabase
+  // Basic dosage format validation (optional, can be strict regex if needed)
+  if (typeof dosage !== 'string' || dosage.trim().length === 0) {
+    throw new ValidationError('Dosage must be a valid string');
+  }
+
+  const prescriptionData = {
+    patient_id,
+    doctor_id: req.user.id,
+    medication_name,
+    dosage,
+    frequency,
+    duration,
+    instructions,
+    notes,
+    visit_id // Optional link to a visit
+  };
+
+  const { data: newPrescription, error } = await supabase
     .from('prescriptions')
-    .select(`
-      id,
-      medication_name,
-      dosage,
-      frequency,
-      duration,
-      notes,
-      created_at,
-      updated_at,
-      doctor_id,
-      doctors (
-        id,
-        name,
-        specialization
-      )
-    `)
-    .eq('patient_id', patientId)
-    .order('created_at', { ascending: false });
+    .insert(prescriptionData)
+    .select()
+    .single();
 
   if (error) {
+    console.error('CRITICAL: Error creating prescription record:');
+    console.error('Prescription Data attempted:', JSON.stringify(prescriptionData, null, 2));
+    console.error('Supabase Error:', error);
     throw error;
   }
 
-  return ApiResponse.success(res, prescriptions, 'Patient prescriptions retrieved successfully');
-});
-
-/**
- * GET Doctor's Prescriptions
- * GET /api/prescriptions/doctor/:doctorId
- * 
- * Security:
- * - Doctor can view prescriptions they issued
- * - Admin can view all
- */
-export const getDoctorPrescriptions = asyncHandler(async (req, res) => {
-  const { doctorId } = req.params;
-
-  // Verify doctor exists
-  const { data: doctor, error: doctorError } = await supabase
-    .from('doctors')
-    .select('id, name')
-    .eq('id', doctorId)
-    .single();
-
-  if (doctorError || !doctor) {
-    throw new NotFoundError('Doctor');
-  }
-
-  // Get prescriptions issued by doctor
-  const { data: prescriptions, error } = await supabase
-    .from('prescriptions')
-    .select(`
-      id,
-      patient_id,
-      medication_name,
-      dosage,
-      frequency,
-      duration,
-      notes,
-      created_at,
-      updated_at,
-      patients (
-        id,
-        name,
-        dob,
-        gender
-      )
-    `)
-    .eq('doctor_id', doctorId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return ApiResponse.success(res, prescriptions, 'Doctor prescriptions retrieved successfully');
+  return ApiResponse.created(res, newPrescription);
 });
 
 /**
@@ -267,100 +143,80 @@ export const getDoctorPrescriptions = asyncHandler(async (req, res) => {
  * PUT /api/prescriptions/:prescriptionId
  * 
  * Security:
- * - Only the doctor who created can edit
- * - Validates updated dosage and medication fields (3.3)
- * - Read-only for patients (3.4) and nurses (3.5)
+ * - Doctors can only update their OWN prescriptions
  */
 export const updatePrescription = asyncHandler(async (req, res) => {
   const { prescriptionId } = req.params;
-  const { medication_name, dosage, frequency, duration, notes } = req.body;
+  const updates = req.body;
 
-  // Get existing prescription to check ownership
-  const { data: prescription, error: prescError } = await supabase
+  // 1. Check ownership
+  const { data: existing, error: fetchError } = await supabase
     .from('prescriptions')
-    .select('id, doctor_id')
+    .select('doctor_id')
     .eq('id', prescriptionId)
     .single();
 
-  if (prescError || !prescription) {
+  if (fetchError || !existing) {
     throw new NotFoundError('Prescription');
   }
 
-  // Check ownership - only creating doctor can edit
-  if (prescription.doctor_id !== req.doctorId && req.user.role !== 'admin') {
-    throw new UnauthorizedError('You can only edit prescriptions you created');
+  if (existing.doctor_id !== req.user.id) {
+    throw new UnauthorizedError('You are not authorized to update this prescription');
   }
 
-  // Validate updated fields if provided
-  if (medication_name || dosage || frequency) {
-    validatePrescriptionFields(
-      medication_name || prescription.medication_name,
-      dosage || prescription.dosage,
-      frequency || prescription.frequency
-    );
-  }
+  // 2. Filter updates
+  delete updates.id;
+  delete updates.doctor_id;
+  delete updates.patient_id;
 
-  // Update prescription
-  const { data: updatedPrescription, error } = await supabase
+  // 3. Update
+  const { data: updated, error: updateError } = await supabase
     .from('prescriptions')
-    .update({
-      medication_name,
-      dosage,
-      frequency,
-      duration,
-      notes,
-      updated_at: new Date().toISOString()
-    })
+    .update(updates)
     .eq('id', prescriptionId)
-    .select(`
-      *,
-      patients (id, name),
-      doctors (id, name, specialization)
-    `)
+    .select()
     .single();
 
-  if (error) {
-    throw error;
+  if (updateError) {
+    throw updateError;
   }
 
-  return ApiResponse.success(res, updatedPrescription, 'Prescription updated successfully');
+  return ApiResponse.success(res, updated);
 });
 
 /**
- * DELETE Prescription
- * DELETE /api/prescriptions/:prescriptionId
- * 
- * Security:
- * - Only the doctor who created or admin can delete
+ * GET Doctor Prescriptions
+ * GET /api/prescriptions/doctor/me
  */
-export const deletePrescription = asyncHandler(async (req, res) => {
-  const { prescriptionId } = req.params;
-
-  // Get existing prescription to check ownership
-  const { data: prescription, error: prescError } = await supabase
+export const getDoctorPrescriptions = asyncHandler(async (req, res) => {
+  const { data: prescriptionsRaw, error } = await supabase
     .from('prescriptions')
-    .select('id, doctor_id')
-    .eq('id', prescriptionId)
-    .single();
-
-  if (prescError || !prescription) {
-    throw new NotFoundError('Prescription');
-  }
-
-  // Check ownership - only creator or admin can delete
-  if (prescription.doctor_id !== req.doctorId && req.user.role !== 'admin') {
-    throw new UnauthorizedError('You can only delete prescriptions you created');
-  }
-
-  // Delete prescription
-  const { error } = await supabase
-    .from('prescriptions')
-    .delete()
-    .eq('id', prescriptionId);
+    .select('*')
+    .eq('doctor_id', req.user.id)
+    .order('created_at', { ascending: false });
 
   if (error) {
     throw error;
   }
 
-  return ApiResponse.success(res, { id: prescriptionId }, 'Prescription deleted successfully');
+  // Manual Join for Patient Details
+  const patientIds = new Set();
+  prescriptionsRaw.forEach(p => {
+    if (p.patient_id) patientIds.add(p.patient_id);
+  });
+
+  let usersMap = {};
+  if (patientIds.size > 0) {
+    const { data: patients } = await supabase.from('users').select('id, full_name, email').in('id', Array.from(patientIds));
+    if (patients) {
+      patients.forEach(p => usersMap[p.id] = p);
+    }
+  }
+
+  const prescriptions = prescriptionsRaw.map(p => ({
+    ...p,
+    users: usersMap[p.patient_id] || { full_name: 'Unknown', email: '' } // Mocking 'users' object
+  }));
+
+  return ApiResponse.success(res, prescriptions);
 });

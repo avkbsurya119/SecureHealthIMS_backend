@@ -4,7 +4,11 @@ import {
     getAllUsers,
     approveDoctor,
     banUser,
-    getDoctorDetails
+    unbanUser,
+    getDoctorDetails,
+    getDashboardStats,
+    getAllAppointments,
+    getAllInvoices
 } from '../controllers/admin.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/rbac.middleware.js';
@@ -20,6 +24,13 @@ router.use(authenticate, requireRole('admin'));
  * @access  Private (Admin only)
  */
 router.get('/requests', getPendingDoctors);
+
+/**
+ * @route   GET /api/admin/stats
+ * @desc    Get dashboard statistics
+ * @access  Private (Admin only)
+ */
+router.get('/stats', getDashboardStats);
 
 /**
  * @route   GET /api/admin/users
@@ -48,5 +59,26 @@ router.post('/approve/:id', approveDoctor);
  * @access  Private (Admin only)
  */
 router.post('/ban/:id', banUser);
+
+/**
+ * @route   POST /api/admin/unban/:id
+ * @desc    Unban a user account (doctor or patient)
+ * @access  Private (Admin only)
+ */
+router.post('/unban/:id', unbanUser);
+
+/**
+ * @route   GET /api/admin/appointments
+ * @desc    Get all appointments
+ * @access  Private (Admin only)
+ */
+router.get('/appointments', getAllAppointments);
+
+/**
+ * @route   GET /api/admin/invoices
+ * @desc    Get all invoices
+ * @access  Private (Admin only)
+ */
+router.get('/invoices', getAllInvoices);
 
 export default router;

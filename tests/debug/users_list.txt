@@ -1,0 +1,122 @@
+[
+  {
+    "id": "4d1b1861-8020-4fe8-8863-4296efb7b51b",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "bb27efa9-d056-4ea9-803c-6a7062a6eaf2",
+    "email": null,
+    "role": "patient",
+    "full_name": null
+  },
+  {
+    "id": "4a528208-e96d-490a-8dbc-fe2bc015da35",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "8c72d876-768e-44f6-9506-ead1bbc45eba",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "f9137795-3709-4298-b98e-77eaa1811348",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "9a46f4b1-2a3b-4efd-87fe-6ceb5ecffe78",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "d56f26f3-9254-4831-8ba5-2426eb981548",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "608a3980-8a90-4999-b97b-75e765212160",
+    "email": "cijir52746@newtrea.com",
+    "role": "doctor",
+    "full_name": "Vishnu S"
+  },
+  {
+    "id": "29c6f275-40ef-400f-9ccd-696543cec37e",
+    "email": "weredow533@muhaos.com",
+    "role": "doctor",
+    "full_name": "weredow533"
+  },
+  {
+    "id": "ddc42bfc-420b-416d-8d17-cbd2999c89a2",
+    "email": "arunnanthakumar5@gmail.com",
+    "role": "doctor",
+    "full_name": "Arun N"
+  },
+  {
+    "id": "d9c616cb-6b11-44d0-b9bf-2273daf6f3a1",
+    "email": "svvishnu33@gmail.com",
+    "role": "admin",
+    "full_name": "Vishnu"
+  },
+  {
+    "id": "0d89034f-73e6-4189-a400-d77ac114603a",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "cab2d891-f0e8-448f-bf85-7216f781152f",
+    "email": null,
+    "role": "doctor",
+    "full_name": "Charles"
+  },
+  {
+    "id": "a4842f09-f984-4013-bb71-d22b6c53bf73",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "4098dc85-8947-4e50-a811-b6513fcdda05",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "32b38fc1-ada5-483e-bc24-34e9f600df8d",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "823d5b83-fa2d-427a-93a1-b746c3a3fb83",
+    "email": null,
+    "role": "patient",
+    "full_name": null
+  },
+  {
+    "id": "62b8892a-cc49-406d-a48d-c6be111a7b90",
+    "email": null,
+    "role": "patient",
+    "full_name": null
+  },
+  {
+    "id": "112f1874-5718-47a7-a21f-7077d378ae1a",
+    "email": null,
+    "role": "doctor",
+    "full_name": null
+  },
+  {
+    "id": "b258a813-f116-4c5e-9919-e1a5fa28984e",
+    "email": null,
+    "role": "patient",
+    "full_name": null
+  }
+]

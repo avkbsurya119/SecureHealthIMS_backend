@@ -67,10 +67,10 @@ export const schemas = {
   // Appointments
   appointment: {
     create: {
-      patient_id: { required: true, type: 'uuid' },
+      patient_id: { required: false, type: 'uuid' }, // Optional because controller fills it from token for patients
       doctor_id: { required: true, type: 'uuid' },
-      appointment_date: { required: true, type: 'date' },
-      appointment_time: { required: true, type: 'time' }
+      date: { required: true, type: 'date' },
+      time: { required: true, type: 'time' }
     },
     updateStatus: {
       status: {
@@ -88,7 +88,7 @@ export const schemas = {
       consent_type: {
         required: true,
         type: 'enum',
-        values: ['medical_records', 'data_sharing', 'research', 'marketing', 'emergency_contact']
+        values: ['medical_records', 'data_sharing', 'treatment', 'research', 'marketing', 'emergency_contact']
       }
     }
   },
@@ -122,7 +122,7 @@ export const schemas = {
       patient_id: { required: true, type: 'uuid' },
       doctor_id: { required: true, type: 'uuid' },
       visit_date: { required: true, type: 'date' },
-      visit_time: { required: true, type: 'time' },
+      visit_time: { required: false, type: 'time' },
       chief_complaint: { required: false, type: 'string', maxLength: 500 },
       findings: { required: false, type: 'string', maxLength: 2000 },
       notes: { required: false, type: 'string', maxLength: 3000 }

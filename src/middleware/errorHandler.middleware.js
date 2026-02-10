@@ -15,7 +15,8 @@ export const errorHandler = (err, req, res, next) => {
   console.error('[ERROR]', {
     name: err.name,
     message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    errors: err.errors, // Log specific validation errors if present
+    stack: err.stack,
     path: req.path,
     method: req.method,
     user: req.user?.id,
@@ -34,8 +35,8 @@ export const errorHandler = (err, req, res, next) => {
 
   // Handle unexpected errors (don't leak details)
   const safeError = new ApiError(
-    process.env.NODE_ENV === 'development' 
-      ? err.message 
+    process.env.NODE_ENV === 'development'
+      ? err.message
       : 'An unexpected error occurred',
     500,
     false

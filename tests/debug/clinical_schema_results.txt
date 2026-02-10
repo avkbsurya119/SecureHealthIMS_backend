@@ -1,0 +1,9 @@
+--- Checking SCHEMA for 'visits' and 'prescriptions' ---
+
+1. Testing 'visits' insert with missing visit_time...
+Visits Insert Error: null value in column "visit_time" of relation "visits" violates not-null constraint
+
+2. Testing 'prescriptions' insert...
+Prescriptions Insert Error: insert or update on table "prescriptions" violates foreign key constraint "prescriptions_patient_id_fkey"
+
+--- SCHEMA INFO (VIA PROVOCATION) ---
