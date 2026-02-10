@@ -1,5 +1,7 @@
 import express from 'express';
 import {
+  initiateRegister,
+  verifyAndRegister,
   register,
   login,
   logout,
@@ -15,13 +17,34 @@ import { validate, validators } from '../middleware/validation.middleware.js';
 const router = express.Router();
 
 /**
+ * @route   POST /api/auth/register/initiate
+ * @desc    Initiate registration (Step 1: Send OTP)
+ * @access  Public
+ */
+router.post(
+  '/register/initiate',
+  validate(validators.initiateRegister),
+  initiateRegister
+);
+
+/**
+ * @route   POST /api/auth/register/verify
+ * @desc    Verify OTP and complete registration (Step 2)
+ * @access  Public
+ */
+router.post(
+  '/register/verify',
+  validate(validators.verifyOTP),
+  verifyAndRegister
+);
+
+/**
  * @route   POST /api/auth/register
- * @desc    Register a new user (patient or doctor)
+ * @desc    Register a new user (Deprecated in favor of /register/initiate)
  * @access  Public
  */
 router.post(
   '/register',
-  validate(validators.register),
   register
 );
 

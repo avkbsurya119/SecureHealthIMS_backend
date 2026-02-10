@@ -96,6 +96,24 @@ export const schemas = {
 
   // Authentication
   auth: {
+    initiateRegister: {
+      email: { required: true, type: 'email' },
+      password: { required: true, type: 'string', minLength: 8, maxLength: 100 }
+    },
+    verifyOTP: {
+      email: { required: true, type: 'email' },
+      token: { required: true, type: 'string', minLength: 8, maxLength: 8 },
+      role: { required: true, type: 'enum', values: ['patient', 'doctor'] },
+      name: { required: true, type: 'string', minLength: 2, maxLength: 100 },
+      phone: { required: false, type: 'string', maxLength: 20 },
+      // Patient-specific
+      date_of_birth: { required: false, type: 'date' },
+      gender: { required: false, type: 'enum', values: ['male', 'female', 'other'] },
+      address: { required: false, type: 'string', maxLength: 500 },
+      // Doctor-specific
+      specialization: { required: false, type: 'string', maxLength: 100 },
+      department_id: { required: false, type: 'uuid' }
+    },
     register: {
       email: { required: true, type: 'email' },
       password: { required: true, type: 'string', minLength: 8, maxLength: 100 },
@@ -161,6 +179,8 @@ export const schemas = {
 /**
  * Validator shortcuts for controllers
  */
+validators.initiateRegister = schemas.auth.initiateRegister;
+validators.verifyOTP = schemas.auth.verifyOTP;
 validators.register = schemas.auth.register;
 validators.login = schemas.auth.login;
 
