@@ -1,0 +1,6 @@
+--- ERROR ---
+null
+--- DATA ---
+[]
+--- COLUMN PROBE ---
+Diagnosis error message: column visits.diagnosis does not exist

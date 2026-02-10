@@ -1,0 +1,345 @@
+
+import { supabase } from '../config/supabaseClient.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
+
+/**
+ * Get dashboard stats
+ * GET /api/admin/stats
+ */
+export const getDashboardStats = async (req, res, next) => {
+    try {
+        // Run queries in parallel for better performance
+        const [
+            { count: doctorCount, error: doctorError },
+            { count: patientCount, error: patientError },
+            { count: nurseCount, error: nurseError },
+            { count: appointmentCount, error: appointmentError },
+            { data: invoices, error: invoiceError }
+        ] = await Promise.all([
+            supabase.from('doctors').select('*', { count: 'exact', head: true }),
+            supabase.from('patients').select('*', { count: 'exact', head: true }),
+            supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'nurse'),
+            supabase.from('appointments').select('*', { count: 'exact', head: true }),
+            supabase.from('invoices').select('total').eq('status', 'Paid')
+        ]);
+
+        if (doctorError) throw new Error(doctorError.message);
+        if (patientError) throw new Error(patientError.message);
+        // nurseError unused? no
+        if (nurseError) throw new Error(nurseError.message);
+
+        const totalIncome = invoices ? invoices.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0) : 0;
+
+        res.json({
+            success: true,
+            data: {
+                doctors: doctorCount || 0,
+                patients: patientCount || 0,
+                nurses: nurseCount || 0,
+                appointments: appointmentCount || 0,
+                income: totalIncome
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get all pending doctor registration requests
+ * GET /api/admin/requests
+ */
+export const getPendingDoctors = async (req, res, next) => {
+    try {
+        const { data: doctors, error } = await supabase
+            .from('doctors')
+            .select('id, name, email, specialization, phone, department_id, created_at, verified')
+            .eq('verified', false)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        res.json({
+            success: true,
+            count: doctors.length,
+            data: doctors
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get all users (doctors, patients, nurses)
+ * GET /api/admin/users
+ */
+export const getAllUsers = async (req, res, next) => {
+    try {
+        // Fetch patients
+        const { data: patients, error: patientsError } = await supabase
+            .from('patients')
+            .select('id, name, email, phone, gender, created_at, verified, user_id, patient_consents(status)')
+            .order('created_at', { ascending: false });
+
+        if (patientsError) throw new Error(patientsError.message);
+
+        // Fetch doctors
+        const { data: doctors, error: doctorsError } = await supabase
+            .from('doctors')
+            .select('id, name, email, specialization, phone, department_id, created_at, verified, user_id, departments(name)')
+            .order('created_at', { ascending: false });
+
+        if (doctorsError) throw new Error(doctorsError.message);
+
+        // Fetch nurses (from users table directly as they might not have a profile table yet, or if they do we verify)
+        // We fetch users where role='nurse'
+        const { data: nurses, error: nursesError } = await supabase
+            .from('users')
+            .select('id, full_name, email, phone, created_at, is_active')
+            .eq('role', 'nurse')
+            .order('created_at', { ascending: false });
+
+        if (nursesError) throw new Error(nursesError.message);
+
+        // Combine and format
+        const allUsers = [
+            ...patients.map(p => ({
+                ...p,
+                role: 'patient',
+                consent: p.patient_consents && p.patient_consents.some(c => c.status === 'granted')
+            })),
+            ...doctors.map(d => ({ ...d, role: 'doctor' })),
+            ...nurses.map(n => ({
+                ...n,
+                name: n.full_name, // Map full_name to name
+                role: 'nurse',
+                verified: n.is_active // Map is_active to verified for nurses
+            }))
+        ];
+
+        console.log('📊 Admin Users Debug:');
+        console.log('  - Patients:', patients?.length || 0);
+        console.log('  - Doctors:', doctors?.length || 0);
+        console.log('  - Nurses:', nurses?.length || 0);
+        if (doctors?.length > 0) {
+            console.log('  - Sample doctor:', JSON.stringify(doctors[0], null, 2));
+        }
+
+        res.json({
+            success: true,
+            count: allUsers.length,
+            data: allUsers
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get specific doctor details
+ * GET /api/admin/doctors/:id
+ */
+export const getDoctorDetails = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const { data: doctor, error } = await supabase
+            .from('doctors')
+            .select('*, departments(name)')
+            .eq('id', id)
+            .single();
+
+        if (error || !doctor) {
+            throw new NotFoundError('Doctor not found');
+        }
+
+        res.json({
+            success: true,
+            data: doctor
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Approve a doctor account
+ * POST /api/admin/approve/:id
+ */
+export const approveDoctor = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        // Verify doctor exists first
+        const { data: doctor, error: fetchError } = await supabase
+            .from('doctors')
+            .select('id, name, email')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !doctor) {
+            throw new NotFoundError('Doctor not found');
+        }
+
+        // Update verified status
+        const { error: updateError } = await supabase
+            .from('doctors')
+            .update({ verified: true })
+            .eq('id', id);
+
+        if (updateError) {
+            throw new Error(updateError.message);
+        }
+
+        res.json({
+            success: true,
+            message: `Doctor ${doctor.name} has been approved`
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get all appointments
+ * GET /api/admin/appointments
+ */
+export const getAllAppointments = async (req, res, next) => {
+    try {
+        const { data: appointments, error } = await supabase
+            .from('appointments')
+            .select('*, patients(name), doctors(name)')
+            .order('date', { ascending: false });
+
+        if (error) throw new Error(error.message);
+
+        // Map join fields to flat structure if needed, or frontend handles it
+        const formatted = appointments.map(a => ({
+            ...a,
+            patient_name: a.patients?.name || 'Unknown',
+            doctor_name: a.doctors?.name || 'Unknown'
+        }));
+
+        res.json({
+            success: true,
+            data: formatted
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get all invoices
+ * GET /api/admin/invoices
+ */
+export const getAllInvoices = async (req, res, next) => {
+    try {
+        const { data: invoices, error } = await supabase
+            .from('invoices')
+            .select('*, patients(name)')
+            .order('date', { ascending: false });
+
+        if (error) throw new Error(error.message);
+
+        const formatted = invoices.map(i => ({
+            ...i,
+            patient_name: i.patients?.name || 'Unknown'
+        }));
+
+        res.json({
+            success: true,
+            data: formatted
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+export const banUser = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!role || !['doctor', 'patient'].includes(role)) {
+            // Check if it's a doctor or patient by trying to find them? 
+            // Or assume frontend sends role.
+            // Frontend handleBan needs to send role.
+            throw new ValidationError('Role (doctor/patient) is required in body');
+        }
+
+        const table = role === 'doctors' || role === 'doctor' ? 'doctors' : 'patients';
+
+        // Verify user exists
+        const { data: user, error: fetchError } = await supabase
+            .from(table)
+            .select('id, name, user_id')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !user) {
+            throw new NotFoundError(`${role} not found`);
+        }
+
+        // Update verified status to false (BAN)
+        const { error: updateError } = await supabase
+            .from(table)
+            .update({ verified: false })
+            .eq('id', id);
+
+        if (updateError) {
+            throw new Error(updateError.message);
+        }
+
+        res.json({
+            success: true,
+            message: `User ${user.name} has been banned (verification revoked)`
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const unbanUser = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!role || !['doctor', 'patient'].includes(role)) {
+            throw new ValidationError('Role (doctor/patient) is required in body');
+        }
+
+        const table = role === 'doctors' || role === 'doctor' ? 'doctors' : 'patients';
+
+        // Verify user exists
+        const { data: user, error: fetchError } = await supabase
+            .from(table)
+            .select('id, name, user_id')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !user) {
+            throw new NotFoundError(`${role} not found`);
+        }
+
+        // Update verified status to true (UNBAN)
+        const { error: updateError } = await supabase
+            .from(table)
+            .update({ verified: true })
+            .eq('id', id);
+
+        if (updateError) {
+            throw new Error(updateError.message);
+        }
+
+        res.json({
+            success: true,
+            message: `User ${user.name} has been unbanned`
+        });
+    } catch (error) {
+        next(error);
+    }
+};

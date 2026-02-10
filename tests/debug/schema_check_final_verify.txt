@@ -1,0 +1,27 @@
+--- MULTI-TABLE SCHEMA CHECK START ---
+Checking table: users...
+Columns in users: [
+  'id',                'user_id',
+  'email',             'full_name',
+  'phone',             'date_of_birth',
+  'gender',            'address',
+  'role',              'is_active',
+  'profile_completed', 'approval_status',
+  'allergies',         'blood_group',
+  'medical_history',   'emergency_contact',
+  'emergency_phone',   'created_at',
+  'updated_at',        'specialization',
+  'license_number',    'education',
+  'experience_years',  'hospital_affiliation',
+  'nursing_license',   'department'
+]
+Checking table: patients...
+Columns in patients: [
+  'id',       'user_id',
+  'name',     'dob',
+  'gender',   'phone',
+  'email',    'address',
+  'verified', 'created_at'
+]
+--- MULTI-TABLE SCHEMA CHECK END ---
+Timeout reached, exiting.
