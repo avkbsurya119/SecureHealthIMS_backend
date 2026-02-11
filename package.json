@@ -8,13 +8,17 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@google/genai": "^1.44.0",
     "@supabase/supabase-js": "^2.90.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "express-rate-limit": "^8.2.1",
+    "form-data": "^4.0.5",
+    "groq-sdk": "^0.37.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
     "node-fetch": "^3.3.2",
     "pg": "^8.20.0",
     "postgres": "^3.4.8"
