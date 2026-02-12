@@ -1,3 +1,7 @@
+/**
+ * Server Instance Initialization
+ * Boots up the Express application and verifies database connectivity.
+ */
 import app from './app.js'
 import { testSupabaseConnection } from './config/supabaseClient.js'
 
