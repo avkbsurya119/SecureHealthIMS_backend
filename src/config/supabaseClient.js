@@ -1,3 +1,8 @@
+/**
+ * Supabase Client Configuration
+ * Initializes the connection to the medical database using the service role key.
+ * This client is used for all backend database interactions.
+ */
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
 
