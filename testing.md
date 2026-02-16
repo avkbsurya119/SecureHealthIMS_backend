@@ -58,3 +58,63 @@ Backend Testing - All 117 Tests Detailed
 - Checked that user data correctly extracted from Supabase response
 
 ### Test 2: authenticate › should reject request without authorization header
+
+**Status: PASS** | Duration: 10ms
+
+**Test Inputs:**
+
+| **Authorization Header** | undefined |
+| --- | --- |
+| **Request Headers** | {}  |
+| **Expected Behavior** | Immediate rejection before Supabase call |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Access token required |
+| **HTTP Status Code** | 401 |
+| **next() called** | false |
+| **Supabase Called** | false |
+
+**Validations:**
+
+- Confirmed UnauthenticatedError thrown
+- Verified error message: 'Access token required'
+- Validated HTTP 401 (Unauthorized) status code
+- Ensured next() not called when auth fails
+- Verified early validation prevents unnecessary Supabase calls
+
+### Test 3: authenticate › should reject request with invalid authorization format
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Authorization Header** | InvalidFormat token123 |
+| --- | --- |
+| **Expected Format** | Bearer &lt;token&gt; |
+| **Malformed Input** | Missing 'Bearer' prefix |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Access token required |
+| **HTTP Status Code** | 401 |
+| **Format Validation** | FAILED |
+
+**Validations:**
+
+- Validated rejection of improperly formatted authorization header
+- Confirmed error thrown for non-Bearer token format
+- Verified proper error messaging for invalid format
+- Ensured security: only 'Bearer &lt;token&gt;' format accepted
+
+### Test 4: authenticate › should reject expired token
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Token Status** | Expired |
