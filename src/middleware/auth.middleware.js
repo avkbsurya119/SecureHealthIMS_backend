@@ -60,6 +60,12 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     is_active: userDetails.is_active
   };
 
+  /**
+   * By attaching the user object to req.user, we enable downstream 
+   * middleware (like requireRole) and controllers to easily access
+   * the authenticated user's identity and permissions without
+   * re-querying the database.
+   */
   req.token = token;
 
   next();
