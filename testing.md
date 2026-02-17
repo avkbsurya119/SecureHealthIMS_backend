@@ -178,3 +178,63 @@ Backend Testing - All 117 Tests Detailed
 
 **Expected Outputs:**
 
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | User account is inactive |
+| **HTTP Status Code** | 403 |
+| **Access Granted** | false |
+
+**Validations:**
+
+- Verified user status field checked during authentication
+- Confirmed inactive users cannot authenticate
+- Validated proper HTTP status (403 Forbidden) for inactive accounts
+- Ensured distinction between authentication (401) and authorization (403)
+
+### Test 7: authenticate › should handle different user roles correctly
+
+**Status: PASS** | Duration: 2ms
+
+**Test Inputs:**
+
+| **Test Roles** | \['admin', 'doctor', 'nurse', 'patient'\] |
+| --- | --- |
+| **Test Method** | Parameterized test iterating each role |
+| **Mock Response Pattern** | { user: { id: \`\${role}-123\`, role: role, email: \`\${role}@example.com\` } } |
+
+**Expected Outputs:**
+
+| **All Roles Authenticated** | true |
+| --- | --- |
+| **req.user.role Set Correctly** | true for each role |
+| **next() Call Count** | 4 (once per role) |
+| **Role Data Preserved** | true |
+
+**Validations:**
+
+- Iterated through all user roles (admin, doctor, nurse, patient)
+- Confirmed each role properly attached to req.user object
+- Validated authentication succeeds for all valid roles
+- Ensured role-based data correctly preserved in request
+- Verified no role-specific authentication logic exists
+
+### Test 8: authenticateSupabaseOnly › should authenticate using only Supabase Auth
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Authentication Method** | Supabase Auth Only (no database lookup) |
+| --- | --- |
+| **User ID** | user-123 |
+| **User Email** | <test@example.com> |
+| **Database Lookup** | SKIPPED |
+
+**Expected Outputs:**
+
+| **req.user.id** | user-123 |
+| --- | --- |
+| **req.user.email** | <test@example.com> |
+| **Database Query Made** | false |
+| **next() Called** | true |
+| **Auth Source** | Supabase only |
