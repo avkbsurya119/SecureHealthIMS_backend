@@ -118,3 +118,63 @@ Backend Testing - All 117 Tests Detailed
 **Test Inputs:**
 
 | **Token Status** | Expired |
+| --- | --- |
+| **Token Value** | eyJhbGc...expired |
+| **Supabase Response** | { data: { user: null }, error: { message: 'Token expired' } } |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Invalid or expired token |
+| **HTTP Status Code** | 401 |
+| **User Authenticated** | false |
+
+**Validations:**
+
+- Verified expired tokens properly detected by Supabase
+- Confirmed appropriate error thrown for expired tokens
+- Validated user not authenticated with expired token
+- Ensured expired token error propagated correctly
+
+### Test 5: authenticate › should reject token for non-existent user
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Token** | Valid JWT (not expired) |
+| --- | --- |
+| **User ID from Token** | user-123 |
+| **Database Query** | SELECT \* FROM users WHERE id = 'user-123' |
+| **Database Result** | null (user not found) |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | User not found |
+| **HTTP Status Code** | 401 |
+| **Database Lookup Performed** | true |
+
+**Validations:**
+
+- Confirmed database lookup performed for user ID from token
+- Verified rejection when user doesn't exist in database
+- Validated proper error handling for missing user records
+- Ensured token validity checked against actual user existence
+
+### Test 6: authenticate › should reject inactive users
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User ID** | user-123 |
+| --- | --- |
+| **User Status** | inactive |
+| **Database Record** | { id: 'user-123', email: '<test@example.com>', status: 'inactive' } |
+| **Token** | Valid JWT token |
+
+**Expected Outputs:**
+
