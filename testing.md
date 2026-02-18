@@ -238,3 +238,63 @@ Backend Testing - All 117 Tests Detailed
 | **Database Query Made** | false |
 | **next() Called** | true |
 | **Auth Source** | Supabase only |
+
+**Validations:**
+
+- Verified authentication completes without database lookup
+- Confirmed user data comes directly from Supabase Auth
+- Validated next() called after Supabase verification
+- Ensured no additional database queries performed
+- Tested lightweight authentication flow for specific use cases
+
+### Test 9: authenticateSupabaseOnly › should reject invalid token
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Token** | invalid-token-string-123 |
+| --- | --- |
+| **Supabase Response** | { data: { user: null }, error: { message: 'Invalid token' } } |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Invalid or expired token |
+| **HTTP Status Code** | 401 |
+| **Database Called** | false |
+
+**Validations:**
+
+- Confirmed Supabase rejects invalid token format
+- Verified proper error propagation from Supabase
+- Validated error handling without database access
+- Ensured consistent error messaging
+
+### Test 10: authenticateSupabaseOnly › should require authorization header
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Authorization Header** | undefined |
+| --- | --- |
+| **Request Object** | { headers: {} } |
+| **Middleware Type** | Supabase-only auth |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Access token required |
+| **HTTP Status Code** | 401 |
+| **Early Exit** | true |
+
+**Validations:**
+
+- Validated authorization header is mandatory
+- Confirmed early rejection before Supabase call
+- Verified appropriate error for missing credentials
+- Ensured consistent validation across auth middleware variants
+
