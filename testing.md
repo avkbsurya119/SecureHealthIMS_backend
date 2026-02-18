@@ -298,3 +298,63 @@ Backend Testing - All 117 Tests Detailed
 - Verified appropriate error for missing credentials
 - Ensured consistent validation across auth middleware variants
 
+### Test 11: optionalAuth › should continue without user if no token provided
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Authorization Header** | undefined |
+| --- | --- |
+| **Middleware Type** | Optional Authentication |
+| **Expected Behavior** | Allow request to continue |
+
+**Expected Outputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **next() Called** | true |
+| **Error Thrown** | false |
+| **Request Allowed** | true |
+
+**Validations:**
+
+- Confirmed middleware allows unauthenticated requests
+- Verified req.user remains undefined when no token present
+- Validated next() called to continue request pipeline
+- Ensured no errors thrown for missing authentication
+- Tested public endpoint support
+
+### Test 12: optionalAuth › should attach user if valid token provided
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Token** | valid-jwt-token |
+| --- | --- |
+| **User ID** | user-456 |
+| **User Email** | <optional@example.com> |
+| **Supabase Response** | { data: { user: { id: 'user-456', email: '<optional@example.com>' } } } |
+
+**Expected Outputs:**
+
+| **req.user.id** | user-456 |
+| --- | --- |
+| **req.user.email** | <optional@example.com> |
+| **Authentication Completed** | true |
+| **next() Called** | true |
+| **User Attached** | true |
+
+**Validations:**
+
+- Verified valid tokens processed in optional auth
+- Confirmed user attached to request when token valid
+- Validated normal authentication flow when credentials provided
+- Ensured optional auth supports both authenticated and unauthenticated requests
+
+### Test 13: optionalAuth › should continue without user if token is invalid
+
+**Status: PASS** | Duration: 5ms
+
+**Test Inputs:**
