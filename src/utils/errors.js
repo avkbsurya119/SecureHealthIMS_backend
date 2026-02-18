@@ -7,14 +7,19 @@
  * Base API Error Class
  */
 export class ApiError extends Error {
-  constructor(message, statusCode, isOperational = true) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = isOperational;
-    this.timestamp = new Date().toISOString();
-    Error.captureStackTrace(this, this.constructor);
+    /**
+     * @param {string} message - Error description
+     * @param {number} statusCode - HTTP status code
+     * @param {boolean} isOperational - Whether the error is trusted (operational) or a programmer error
+     */
+    constructor(message, statusCode, isOperational = true) {
+      super(message);
+      this.statusCode = statusCode;
+      this.isOperational = isOperational;
+      this.timestamp = new Date().toISOString();
+      Error.captureStackTrace(this, this.constructor);
+    }
   }
-}
 
 /**
  * 401 Unauthorized - Authentication failed
