@@ -418,3 +418,63 @@ Backend Testing - All 117 Tests Detailed
 | **req.user** | { id: 'user-123', role: 'admin', email: '<admin@example.com>' } |
 
 **Expected Outputs:**
+
+| **Authorization Check** | PASSED |
+| --- | --- |
+| **next() Called** | true |
+| **Error Thrown** | false |
+| **Access Granted** | true |
+
+**Validations:**
+
+- Verified role comparison logic works correctly
+- Confirmed next() called when roles match
+- Validated successful authorization for correct role
+- Ensured case-sensitive role matching
+
+### Test 16: requireRole › should reject user with wrong role
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Required Role** | admin |
+| --- | --- |
+| **User Role** | patient |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | Role 'patient' is not authorized |
+| **HTTP Status Code** | 403 |
+| **next() Called** | false |
+| **Access Denied** | true |
+
+**Validations:**
+
+- Confirmed rejection when user role doesn't match requirement
+- Verified specific error message includes actual role
+- Validated HTTP 403 (Forbidden) for authorization failure
+- Ensured descriptive error for debugging
+
+### Test 17: requireRole › should reject unauthenticated request
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **Required Role** | admin |
+| **Authentication Status** | Not authenticated |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | User not authenticated |
+| **HTTP Status Code** | 401 |
+| **Auth Check First** | true |
+
