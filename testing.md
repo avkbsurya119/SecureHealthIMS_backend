@@ -358,3 +358,63 @@ Backend Testing - All 117 Tests Detailed
 **Status: PASS** | Duration: 5ms
 
 **Test Inputs:**
+
+| **Token** | invalid-or-expired-token |
+| --- | --- |
+| **Supabase Response** | { data: { user: null }, error: { message: 'Invalid token' } } |
+| **Expected Behavior** | Graceful handling, no error thrown |
+
+**Expected Outputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **next() Called** | true |
+| **Error Thrown** | false |
+| **Request Continues** | true |
+
+**Validations:**
+
+- Confirmed graceful handling of invalid tokens in optional auth
+- Verified request continues even with authentication failure
+- Validated errors caught and don't propagate
+- Ensured optional auth never blocks requests
+- Tested error suppression for public endpoints
+
+### Test 14: optionalAuth › should not attach inactive user
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Token** | valid-jwt-token |
+| --- | --- |
+| **User Status** | inactive |
+| **Database Record** | { id: 'user-789', status: 'inactive', email: '<inactive@example.com>' } |
+
+**Expected Outputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **next() Called** | true |
+| **Inactive User Attached** | false |
+| **Request Continues** | true |
+
+**Validations:**
+
+- Verified inactive users not attached in optional auth
+- Confirmed user status check occurs even in optional mode
+- Validated request continues without setting req.user
+- Ensured consistent inactive user handling across auth modes
+
+### Test 15: requireRole › should allow user with correct role
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Required Role** | admin |
+| --- | --- |
+| **User Role** | admin |
+| **req.user** | { id: 'user-123', role: 'admin', email: '<admin@example.com>' } |
+
+**Expected Outputs:**
