@@ -538,3 +538,63 @@ Backend Testing - All 117 Tests Detailed
 - Ensured all array elements checked
 
 # **Module 2: middleware/rbac.middleware**
+
+| **File** | rbac.middleware.test.js |
+| --- | --- |
+| **Status** | ✓ PASSED (29/29 tests) |
+| **Duration** | 35ms |
+| **Average per Test** | 1.21ms |
+
+### Test 1: requireRole › should allow user with correct role
+
+**Status: PASS** | Duration: 3ms
+
+**Test Inputs:**
+
+| **Middleware Function** | requireRole('admin') |
+| --- | --- |
+| **User Role** | admin |
+| **req.user** | { id: 'user-123', role: 'admin' } |
+
+**Expected Outputs:**
+
+| **next() Called** | true |
+| --- | --- |
+| **next() Arguments** | undefined (no error) |
+| **Authorization** | GRANTED |
+| **Function Behavior** | Correct |
+
+**Validations:**
+
+- Verified requireRole middleware properly validates matching roles
+- Confirmed next() called without error arguments
+- Validated successful role-based access control
+- Ensured middleware chain continues
+
+### Test 2: requireRole › should reject user with incorrect role
+
+**Status: PASS** | Duration: 12ms
+
+**Test Inputs:**
+
+| **Required Role** | admin |
+| --- | --- |
+| **User Role** | patient |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires admin role |
+| **HTTP Status Code** | 403 |
+| **next() Called** | false |
+
+**Validations:**
+
+- Confirmed proper rejection of unauthorized roles
+- Verified descriptive error message specifies required role
+- Validated HTTP 403 status for role mismatch
+- Ensured clear messaging for debugging
+
+### Test 3: requireRole › should reject unauthenticated user
