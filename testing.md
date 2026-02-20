@@ -478,3 +478,63 @@ Backend Testing - All 117 Tests Detailed
 | **HTTP Status Code** | 401 |
 | **Auth Check First** | true |
 
+**Validations:**
+
+- Verified authentication checked before role validation
+- Confirmed unauthenticated requests rejected
+- Validated proper HTTP status (401) for missing authentication
+- Ensured security: no role check without authentication
+
+### Test 18: requireRole › should handle array of roles
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Allowed Roles** | \['admin', 'doctor'\] |
+| --- | --- |
+| **User Role** | doctor |
+| **req.user** | { id: 'user-123', role: 'doctor' } |
+
+**Expected Outputs:**
+
+| **Authorization Check** | PASSED |
+| --- | --- |
+| **Role Match Found** | true (doctor in allowed array) |
+| **next() Called** | true |
+| **Array Handling** | Correct |
+
+**Validations:**
+
+- Verified middleware supports multiple allowed roles
+- Confirmed array-based role matching works correctly
+- Validated any matching role in array grants access
+- Tested flexible authorization configuration
+
+### Test 19: requireRole › should reject if role not in allowed array
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Allowed Roles** | \['admin', 'doctor'\] |
+| --- | --- |
+| **User Role** | patient |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | Role 'patient' is not authorized |
+| **HTTP Status Code** | 403 |
+| **Role in Array** | false |
+
+**Validations:**
+
+- Confirmed rejection when role not in allowed array
+- Verified error message accurately reports user's role
+- Validated proper authorization failure handling
+- Ensured all array elements checked
+
+# **Module 2: middleware/rbac.middleware**
