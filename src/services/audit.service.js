@@ -135,7 +135,7 @@ export class AuditService {
    * @param {Object} options - Query options
    * @returns {Promise<Array>} - List of audit log records
    */
-  static async getPatientAuditLogs(patientId, options = {}) {
+  static async getPatientAuditLogs(id, options = {}) {
     const {
       limit = 100,
       offset = 0,
@@ -144,11 +144,13 @@ export class AuditService {
       endDate = null
     } = options;
 
+    // We check both patient_id (legacy) and user_id (unified) columns
+    // to ensure all relevant logs are found during transition.
     let query = supabase
       .from('audit_logs')
       .select('*')
-      .eq('patient_id', patientId)
-      .neq('user_id', patientId) // Exclude patient's own actions
+      .or(`patient_id.eq.${id},user_id.eq.${id}`)
+      .neq('user_id', id) // Exclude patient's own actions
       .order('created_at', { ascending: false });
 
     if (action) {
@@ -171,35 +173,31 @@ export class AuditService {
       throw error;
     }
 
-    // Optimization: avoid N+1 queries by grabbing all unique user IDs
-    const userIds = [...new Set((data || []).map(log => log.user_id))];
-    let usersMap = {};
-    if (userIds.length > 0) {
-      const { data: usersData } = await supabase
+    const logs = data || [];
+
+    // Enrich logs with performer (doctor/staff) name and role
+    const performerIds = new Set(logs.map(l => l.performed_by || l.user_id).filter(Boolean));
+    let performersMap = {};
+    if (performerIds.size > 0) {
+      const { data: performers } = await supabase
         .from('users')
-        .select('id, full_name, role')
-        .in('id', userIds);
-      if (usersData) {
-        usersData.forEach(u => {
-          usersMap[u.id] = u;
-        });
+        .select('id, full_name, role, specialization')
+        .in('id', Array.from(performerIds));
+      if (performers) {
+        performers.forEach(p => { performersMap[p.id] = p; });
       }
     }
 
-    // Flatten the user data and FILTER out patient self-actions
-    const formattedData = data?.map(log => {
-      const user = usersMap[log.user_id] || {};
+    return logs.map(log => {
+      const performerId = log.performed_by || log.user_id;
+      const performer = performersMap[performerId] || null;
       return {
         ...log,
-        user_name: user.full_name || 'Staff member',
-        details: {
-          ...log.details,
-          role: user.role || log.details?.role || 'Staff'
-        }
+        performer: performer
+          ? { name: performer.full_name, role: performer.role, specialization: performer.specialization }
+          : null
       };
-    }).filter(log => log.details.role !== 'patient');
-
-    return formattedData || [];
+    });
   }
 
   /**
@@ -258,12 +256,12 @@ export class AuditService {
    * Get audit summary for a patient
    * Shows who accessed their data and when
    */
-  static async getPatientAccessSummary(patientId) {
+  static async getPatientAccessSummary(id) {
     const { data, error } = await supabase
       .from('audit_logs')
       .select('user_id, action, resource, created_at')
-      .eq('patient_id', patientId)
-      .neq('user_id', patientId) // Exclude patient's own actions
+      .or(`patient_id.eq.${id},user_id.eq.${id}`)
+      .neq('user_id', id) // Exclude patient's own actions
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -271,32 +269,6 @@ export class AuditService {
       throw error;
     }
 
-    // Optimization: avoid N+1 queries by grabbing all unique user IDs
-    const userIds = [...new Set((data || []).map(log => log.user_id))];
-    let usersMap = {};
-    if (userIds.length > 0) {
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('id, full_name, role')
-        .in('id', userIds);
-      if (usersData) {
-        usersData.forEach(u => {
-          usersMap[u.id] = u;
-        });
-      }
-    }
-
-    const formattedData = data?.map(log => {
-      const user = usersMap[log.user_id] || {};
-      return {
-        ...log,
-        user_name: user.full_name || 'Staff member',
-        details: {
-          role: user.role || 'Staff'
-        }
-      };
-    }).filter(log => log.details.role !== 'patient');
-
-    return formattedData || [];
+    return data || [];
   }
 }
