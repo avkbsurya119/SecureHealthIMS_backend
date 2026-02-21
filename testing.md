@@ -598,3 +598,63 @@ Backend Testing - All 117 Tests Detailed
 - Ensured clear messaging for debugging
 
 ### Test 3: requireRole › should reject unauthenticated user
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **Authentication Status** | Not authenticated |
+| **Required Role** | admin |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Authentication required |
+| **HTTP Status Code** | 401 |
+| **Pre-check** | Authentication before role |
+
+**Validations:**
+
+- Verified authentication check occurs before role validation
+- Confirmed proper error for missing authentication
+- Validated HTTP 401 status for unauthenticated requests
+- Ensured security layering
+
+### Test 4: requireRole › should work for different roles
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Test Roles** | \['admin', 'doctor', 'nurse', 'patient'\] |
+| --- | --- |
+| **Test Method** | Parameterized test for each role |
+| **req.user Pattern** | { id: 'user-123', role: \${role} } |
+
+**Expected Outputs:**
+
+| **Tests Executed** | 4 (one per role) |
+| --- | --- |
+| **All Tests Passed** | true |
+| **next() Call Count** | 4   |
+| **Role Flexibility** | Confirmed |
+
+**Validations:**
+
+- Iterated through all system roles
+- Verified requireRole works consistently across different roles
+- Confirmed each role can be individually required and validated
+- Tested middleware reusability
+
+### Test 5: requireAnyRole › should allow user with one of the allowed roles
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Allowed Roles** | \['admin', 'doctor', 'nurse'\] |
+| --- | --- |
+| **User Role** | doctor |
