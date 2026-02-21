@@ -11,6 +11,7 @@ export const register = async (req, res, next) => {
     const { email, password, role, name, phone, address, specialization, department_id, date_of_birth, gender } = req.body;
 
     // Validate required fields
+    // Ensure both email and password are provided before proceeding with registration
     if (!email || !password) {
       throw new ValidationError('Email and password are required');
     }
