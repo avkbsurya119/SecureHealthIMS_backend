@@ -658,3 +658,63 @@ Backend Testing - All 117 Tests Detailed
 | **Allowed Roles** | \['admin', 'doctor', 'nurse'\] |
 | --- | --- |
 | **User Role** | doctor |
+| **req.user** | { id: 'user-123', role: 'doctor' } |
+
+**Expected Outputs:**
+
+| **Authorization** | GRANTED |
+| --- | --- |
+| **next() Called** | true |
+| **Role Match** | doctor found in allowed roles |
+| **Array Logic** | Working correctly |
+
+**Validations:**
+
+- Verified requireAnyRole accepts any role from allowed list
+- Confirmed successful authorization with matching role
+- Validated multi-role authorization logic
+- Tested OR logic for role permissions
+
+### Test 6: requireAnyRole › should reject user without any of the allowed roles
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Allowed Roles** | \['admin', 'doctor', 'nurse'\] |
+| --- | --- |
+| **User Role** | patient |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires one of these roles: admin, doctor, nurse |
+| **HTTP Status Code** | 403 |
+| **All Roles Listed** | true |
+
+**Validations:**
+
+- Confirmed rejection when user role not in allowed list
+- Verified error message lists all allowed roles
+- Validated comprehensive error messaging for debugging
+- Ensured user knows which roles would grant access
+
+### Test 7: requireAnyRole › should reject unauthenticated user
+
+**Status: PASS** | Duration: 5ms
+
+**Test Inputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **Authentication Status** | Not authenticated |
+| **Allowed Roles** | \['admin', 'doctor', 'nurse'\] |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Authentication required |
+| **HTTP Status Code** | 401 |
