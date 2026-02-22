@@ -1,7 +1,9 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiResponse } from '../utils/errors.js';
-import { NotFoundError, UnauthorizedError } from '../utils/errors.js';
+import { NotFoundError, UnauthorizedError, ConsentRequiredError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
+import { AuditService } from '../services/audit.service.js';
+import { ConsentService } from '../services/consent.service.js';
 
 /**
  * GET My Visits
@@ -50,28 +52,16 @@ export const getMyVisits = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (doctorIds.size > 0) {
-    const { data: doctors } = await supabase
-      .from('users')
-      .select('id, name, full_name, specialization')
-      .in('id', Array.from(doctorIds));
-    
+    const { data: doctors } = await supabase.from('users').select('id, full_name, specialization').in('id', Array.from(doctorIds));
     if (doctors) {
-      doctors.forEach(d => usersMap[d.id] = {
-        ...d,
-        name: d.full_name || d.name || 'Doctor',
-        specialization: d.specialization || ''
-      });
+      doctors.forEach(d => usersMap[d.id] = { ...d, name: d.full_name });
     }
   }
 
-  const visits = visitsRaw.map(v => {
-    const docInfo = usersMap[v.doctor_id] || { name: 'Unknown', specialization: '' };
-    return {
-      ...v,
-      doctor: docInfo,
-      doctors: docInfo // Alias for PatientDashboard
-    };
-  });
+  const visits = visitsRaw.map(v => ({
+    ...v,
+    doctor: usersMap[v.doctor_id] || { name: 'Unknown', specialization: '' }
+  }));
 
   return ApiResponse.success(res, {
     visits: visits || [],
@@ -124,10 +114,18 @@ export const getVisitById = asyncHandler(async (req, res) => {
  * - Doctors only
  */
 export const createVisit = asyncHandler(async (req, res) => {
-  const { patient_id, visit_date, diagnosis, notes } = req.body;
+  const { patient_id, visit_date, diagnosis, chief_complaint, notes } = req.body;
 
   if (!patient_id || !visit_date) {
     throw new Error('Patient ID and Visit Date are required');
+  }
+
+  // CONSENT ENFORCEMENT: Patient must have granted medical_records consent.
+  const hasConsent = await ConsentService.hasConsent(patient_id, 'medical_records');
+  if (!hasConsent) {
+    throw new ConsentRequiredError(
+      'Patient has not granted consent to record visits. The patient must enable data sharing in their privacy settings.'
+    );
   }
 
   const visitData = {
@@ -135,6 +133,7 @@ export const createVisit = asyncHandler(async (req, res) => {
     doctor_id: req.user.id,
     visit_date,
     diagnosis,
+    chief_complaint,
     notes
   };
 
@@ -150,6 +149,19 @@ export const createVisit = asyncHandler(async (req, res) => {
     console.error('Supabase Error:', error);
     throw error;
   }
+
+  // Audit Log: Record visit creation
+  await AuditService.logCreate(
+    req.user.id,
+    patient_id,
+    'visit',
+    newVisit.id,
+    {
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+      details: { role: req.user.role, action: 'created_visit' }
+    }
+  );
 
   return ApiResponse.created(res, newVisit);
 });
@@ -182,14 +194,12 @@ export const updateVisit = asyncHandler(async (req, res) => {
   }
 
   // 3. Remove sensitive/immutable fields from updates
-  delete updates.id;
-  delete updates.doctor_id; // Cannot change doctor
-  delete updates.patient_id; // Usually shouldn't change patient, but maybe? Let's disallow for now safety.
+  const { id, doctor_id, patient_id, created_at, ...allowedUpdates } = req.body;
 
   // 4. Update
   const { data: updatedVisit, error: updateError } = await supabase
     .from('visits')
-    .update(updates)
+    .update(allowedUpdates)
     .eq('id', visitId)
     .select()
     .single();
@@ -224,22 +234,15 @@ export const getDoctorVisits = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (patientIds.size > 0) {
-    const { data: patients } = await supabase
-      .from('users')
-      .select('id, name, full_name, email')
-      .in('id', Array.from(patientIds));
-    
+    const { data: patients } = await supabase.from('users').select('id, full_name, email').in('id', Array.from(patientIds));
     if (patients) {
-      patients.forEach(p => usersMap[p.id] = {
-        ...p,
-        name: p.full_name || p.name || 'Patient'
-      });
+      patients.forEach(p => usersMap[p.id] = p);
     }
   }
 
   const visits = visitsRaw.map(v => ({
     ...v,
-    users: usersMap[v.patient_id] || { name: 'Unknown', full_name: 'Unknown', email: '' } // Mocking 'users' object
+    users: usersMap[v.patient_id] || { full_name: 'Unknown', email: '' } // Mocking 'users' object
   }));
 
   return ApiResponse.success(res, visits);
