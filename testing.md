@@ -718,3 +718,63 @@ Backend Testing - All 117 Tests Detailed
 | --- | --- |
 | **Error Message** | Authentication required |
 | **HTTP Status Code** | 401 |
+| **Auth Precedes Role Check** | true |
+
+**Validations:**
+
+- Verified authentication check precedes role validation
+- Confirmed unauthenticated requests rejected early
+- Validated proper error handling for missing user context
+- Ensured consistent security model
+
+### Test 8: requireAnyRole › should handle single role in array
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Allowed Roles** | \['admin'\] |
+| --- | --- |
+| **User Role** | admin |
+| **req.user** | { id: 'user-123', role: 'admin' } |
+| **Array Length** | 1   |
+
+**Expected Outputs:**
+
+| **Authorization** | GRANTED |
+| --- | --- |
+| **next() Called** | true |
+| **Array Processing** | Successfully handled single-element array |
+| **Edge Case** | Handled |
+
+**Validations:**
+
+- Verified middleware handles single-role arrays correctly
+- Confirmed no issues with array length of 1
+- Validated consistent behavior regardless of array size
+- Tested edge case of minimal array
+
+### Test 9: requireAnyRole › should handle multiple valid roles
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Allowed Roles** | \['admin', 'doctor'\] |
+| --- | --- |
+| **Test Roles** | \['admin', 'doctor', 'patient'\] |
+| **Test Method** | Parameterized test with multiple users |
+
+**Expected Outputs:**
+
+| **admin authorization** | GRANTED |
+| --- | --- |
+| **doctor authorization** | GRANTED |
+| **patient authorization** | DENIED |
+| **Correct next() calls** | 2 (admin and doctor only) |
+| **Mixed Results** | Correct |
+
+**Validations:**
+
+- Tested multiple users with different roles against same middleware
+- Verified correct authorization decisions for each role
