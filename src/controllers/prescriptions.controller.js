@@ -1,8 +1,9 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiResponse } from '../utils/errors.js';
-import { NotFoundError, UnauthorizedError, ValidationError } from '../utils/errors.js';
+import { NotFoundError, UnauthorizedError, ValidationError, ConsentRequiredError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 import { AuditService } from '../services/audit.service.js';
+import { ConsentService } from '../services/consent.service.js';
 
 /**
  * GET My Prescriptions
@@ -40,29 +41,16 @@ export const getMyPrescriptions = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (doctorIds.size > 0) {
-    const { data: doctors } = await supabase
-      .from('users')
-      .select('id, name, full_name, specialization')
-      .in('id', Array.from(doctorIds));
-    
+    const { data: doctors } = await supabase.from('users').select('id, full_name, specialization').in('id', Array.from(doctorIds));
     if (doctors) {
-      doctors.forEach(d => usersMap[d.id] = {
-        ...d,
-        name: d.full_name || d.name || 'Doctor',
-        specialization: d.specialization || ''
-      });
+      doctors.forEach(d => usersMap[d.id] = { ...d, name: d.full_name });
     }
   }
 
-  const prescriptions = prescriptionsRaw.map(p => {
-    const docInfo = usersMap[p.doctor_id] || { name: 'Unknown', specialization: '' };
-    return {
-      ...p,
-      doctor: docInfo,
-      doctors: docInfo, // Plural alias for PatientDashboard
-      users: docInfo // Keep for backward compatibility if any
-    };
-  });
+  const prescriptions = prescriptionsRaw.map(p => ({
+    ...p,
+    users: usersMap[p.doctor_id] || { name: 'Unknown', specialization: '' }
+  }));
 
   return ApiResponse.success(res, {
     prescriptions: prescriptions || [],
@@ -104,21 +92,16 @@ export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
     const { data: doctors } = await supabase.from('users').select('id, full_name, name, specialization').in('id', Array.from(doctorIds));
     if (doctors) {
       doctors.forEach(d => usersMap[d.id] = {
-        name: d.full_name || d.name || 'Doctor',
+        name: d.full_name || d.name || 'Unknown',
         specialization: d.specialization || ''
       });
     }
   }
 
-  const prescriptions = prescriptionsRaw.map(p => {
-    const docInfo = usersMap[p.doctor_id] || { name: 'Unknown', specialization: '' };
-    return {
-      ...p,
-      doctor: docInfo,
-      doctors: docInfo, // Alias for PatientDashboard
-      users: docInfo
-    };
-  });
+  const prescriptions = prescriptionsRaw.map(p => ({
+    ...p,
+    users: usersMap[p.doctor_id] || { name: 'Unknown', specialization: '' }
+  }));
 
   // Audit Log: Record that a doctor or nurse viewed this patient's prescriptions
   if (req.user && req.user.role !== 'patient') {
@@ -210,6 +193,14 @@ export const createPrescription = asyncHandler(async (req, res) => {
     throw new ValidationError('Dosage must be a valid string');
   }
 
+  // CONSENT ENFORCEMENT: Patient must have granted medical_records consent.
+  const hasConsent = await ConsentService.hasConsent(patient_id, 'medical_records');
+  if (!hasConsent) {
+    throw new ConsentRequiredError(
+      'Patient has not granted consent to issue prescriptions. The patient must enable data sharing in their privacy settings.'
+    );
+  }
+
   const prescriptionData = {
     patient_id,
     doctor_id: req.user.id,
@@ -234,6 +225,19 @@ export const createPrescription = asyncHandler(async (req, res) => {
     console.error('Supabase Error:', error);
     throw error;
   }
+
+  // Audit Log: Record prescription creation
+  await AuditService.logCreate(
+    req.user.id,
+    patient_id,
+    'prescription',
+    newPrescription.id,
+    {
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+      details: { role: req.user.role, action: 'created_prescription' }
+    }
+  );
 
   return ApiResponse.created(res, newPrescription);
 });
@@ -307,27 +311,16 @@ export const getDoctorPrescriptions = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (patientIds.size > 0) {
-    const { data: patients } = await supabase
-      .from('users')
-      .select('id, name, full_name, email')
-      .in('id', Array.from(patientIds));
-    
+    const { data: patients } = await supabase.from('users').select('id, full_name, email').in('id', Array.from(patientIds));
     if (patients) {
-      patients.forEach(p => usersMap[p.id] = {
-        ...p,
-        name: p.full_name || p.name || 'Patient'
-      });
+      patients.forEach(p => usersMap[p.id] = p);
     }
   }
 
-  const prescriptions = prescriptionsRaw.map(p => {
-    const patientInfo = usersMap[p.patient_id] || { name: 'Unknown', full_name: 'Unknown', email: '' };
-    return {
-      ...p,
-      patient: patientInfo,
-      users: patientInfo // Mocking 'users' object
-    };
-  });
+  const prescriptions = prescriptionsRaw.map(p => ({
+    ...p,
+    users: usersMap[p.patient_id] || { full_name: 'Unknown', email: '' } // Mocking 'users' object
+  }));
 
   return ApiResponse.success(res, prescriptions);
 });
