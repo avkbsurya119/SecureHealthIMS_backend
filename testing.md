@@ -778,3 +778,63 @@ Backend Testing - All 117 Tests Detailed
 
 - Tested multiple users with different roles against same middleware
 - Verified correct authorization decisions for each role
+- Confirmed both allowed and denied cases work properly
+- Validated consistent logic across test cases
+
+### Test 10: requirePatientOrAdmin › should allow admin and set isAdmin flag
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | admin |
+| --- | --- |
+| **req.user** | { id: 'admin-123', role: 'admin' } |
+| **Expected Shortcut** | Admin bypass of patient checks |
+
+**Expected Outputs:**
+
+| **req.isAdmin** | true |
+| --- | --- |
+| **next() Called** | true |
+| **Database Query** | Not performed (admin bypass) |
+| **Flag Set** | true |
+
+**Validations:**
+
+- Verified admin users granted immediate access
+- Confirmed isAdmin flag set correctly on request object
+- Validated database lookup bypassed for admin users
+- Ensured next() called to continue middleware chain
+- Tested admin privilege escalation
+
+### Test 11: requirePatientOrAdmin › should allow patient and set patientId
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | patient |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+| **req.params.patientId** | patient-456 |
+| **Database Query** | SELECT \* FROM patients WHERE id = 'patient-456' |
+| **Database Result** | { id: 'patient-456', user_id: 'user-123' } |
+
+**Expected Outputs:**
+
+| **req.patientId** | patient-456 |
+| --- | --- |
+| **req.isAdmin** | undefined or false |
+| **Database Lookup** | Performed |
+| **Ownership Verified** | true (user_id matches req.user.id) |
+| **next() Called** | true |
+
+**Validations:**
+
+- Confirmed patient role triggers database ownership verification
+- Verified patientId extracted from route parameters
+- Validated database query to fetch patient record
+- Ensured ownership check (user_id = req.user.id) succeeds
+- Confirmed patientId attached to request for downstream use
+
