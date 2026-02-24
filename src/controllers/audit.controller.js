@@ -17,10 +17,10 @@ import { asyncHandler } from '../middleware/errorHandler.middleware.js';
  * - Transparency for HIPAA compliance
  */
 export const getMyAuditLogs = asyncHandler(async (req, res) => {
-  const patientUserId = req.user.id; 
+  const patientId = req.user.id; // Use unified user.id (Auth UUID)
   const { limit = 50, offset = 0, action, from_date, to_date } = req.query;
 
-  const logs = await AuditService.getPatientAuditLogs(patientUserId, {
+  const logs = await AuditService.getPatientAuditLogs(patientId, {
     limit: parseInt(limit),
     offset: parseInt(offset),
     action,
@@ -28,7 +28,7 @@ export const getMyAuditLogs = asyncHandler(async (req, res) => {
     endDate: to_date
   });
 
-  const summary = await AuditService.getPatientAccessSummary(patientUserId);
+  const summary = await AuditService.getPatientAccessSummary(patientId);
 
   return ApiResponse.success(res, {
     logs,
