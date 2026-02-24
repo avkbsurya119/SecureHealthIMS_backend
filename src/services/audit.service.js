@@ -54,7 +54,9 @@ export class AuditService {
 
       return data;
     } catch (error) {
-      // Never let audit logging failure break the application
+      // NEVER let audit logging failure break the applications primary workflows.
+      // While audit logs are critical for HIPAA compliance, a logging failure
+      // should not result in a system-wide outage or a failed request.
       console.error('Audit logging exception:', error);
       return null;
     }
