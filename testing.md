@@ -898,3 +898,63 @@ Backend Testing - All 117 Tests Detailed
 ### Test 14: requirePatientOrAdmin › should reject nurse role
 
 **Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | nurse |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'nurse' } |
+| **Allowed Roles** | \['patient', 'admin'\] |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action is only available to patients |
+| **HTTP Status Code** | 403 |
+| **Nurse Rejected** | true |
+
+**Validations:**
+
+- Verified nurse role rejected from patient-only endpoints
+- Confirmed consistent error messaging
+- Validated proper HTTP status for authorization failure
+- Tested role restrictions
+
+### Test 15: requirePatientOrAdmin › should reject unauthenticated user
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **Authentication Status** | Not authenticated |
+| **Endpoint** | Patient-only |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Authentication required |
+| **HTTP Status Code** | 401 |
+| **Auth Required** | true |
+
+**Validations:**
+
+- Verified authentication check occurs first
+- Confirmed unauthenticated requests immediately rejected
+- Validated proper HTTP 401 status for missing credentials
+- Ensured security baseline
+
+### Test 16: requireDoctor › should allow doctor and set doctor info
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | doctor |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'doctor' } |
+| **Database Query** | SELECT \* FROM doctors WHERE user_id = 'user-123' |
+| **Database Record** | { id: 'doctor-456', user_id: 'user-123', name: 'Dr. Smith', specialty: 'Cardiology' } |
