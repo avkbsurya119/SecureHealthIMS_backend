@@ -838,3 +838,63 @@ Backend Testing - All 117 Tests Detailed
 - Ensured ownership check (user_id = req.user.id) succeeds
 - Confirmed patientId attached to request for downstream use
 
+### Test 12: requirePatientOrAdmin › should reject patient without patient record
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | patient |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+| **req.params.patientId** | patient-999 |
+| **Database Query** | SELECT \* FROM patients WHERE id = 'patient-999' |
+| **Database Result** | null (patient record not found) |
+
+**Expected Outputs:**
+
+| **Error Thrown** | NotFoundError |
+| --- | --- |
+| **Error Message** | Patient not found |
+| **HTTP Status Code** | 404 |
+| **next() Called** | false |
+| **Access Denied** | true |
+
+**Validations:**
+
+- Verified rejection when patient record doesn't exist
+- Confirmed NotFoundError thrown for missing records
+- Validated proper HTTP 404 status
+- Ensured middleware chain halted on error
+- Tested data integrity validation
+
+### Test 13: requirePatientOrAdmin › should reject doctor role
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | doctor |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'doctor' } |
+| **Allowed Roles** | \['patient', 'admin'\] |
+| **Expected** | Rejection |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action is only available to patients |
+| **HTTP Status Code** | 403 |
+| **Access Denied** | true |
+
+**Validations:**
+
+- Confirmed doctor role properly rejected
+- Verified specific error message for patient-only actions
+- Validated role-based access control enforcement
+- Ensured endpoint restricted to correct roles
+
+### Test 14: requirePatientOrAdmin › should reject nurse role
+
+**Status: PASS** | Duration: 1ms
