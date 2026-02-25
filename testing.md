@@ -958,3 +958,63 @@ Backend Testing - All 117 Tests Detailed
 | **req.user** | { id: 'user-123', role: 'doctor' } |
 | **Database Query** | SELECT \* FROM doctors WHERE user_id = 'user-123' |
 | **Database Record** | { id: 'doctor-456', user_id: 'user-123', name: 'Dr. Smith', specialty: 'Cardiology' } |
+
+**Expected Outputs:**
+
+| **req.doctorId** | doctor-456 |
+| --- | --- |
+| **req.doctor.name** | Dr. Smith |
+| **req.doctor.specialty** | Cardiology |
+| **Database Lookup** | Performed |
+| **next() Called** | true |
+
+**Validations:**
+
+- Verified doctor role triggers database lookup
+- Confirmed doctor record fetched and attached to request
+- Validated doctorId and complete doctor object set
+- Ensured middleware continues to next handler
+- Tested doctor context enrichment
+
+### Test 17: requireDoctor › should reject patient role
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | patient |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+| **Allowed Role** | doctor only |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires doctor role |
+| **HTTP Status Code** | 403 |
+| **Patient Rejected** | true |
+
+**Validations:**
+
+- Confirmed patient role rejected from doctor-only endpoints
+- Verified role-specific error messaging
+- Validated proper HTTP 403 status
+- Ensured strict role enforcement
+
+### Test 18: requireDoctor › should reject nurse role
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **User Role** | nurse |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'nurse' } |
+| **Allowed Role** | doctor only |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires doctor role |
