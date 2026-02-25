@@ -1018,3 +1018,63 @@ Backend Testing - All 117 Tests Detailed
 | **Error Thrown** | UnauthorizedError |
 | --- | --- |
 | **Error Message** | This action requires doctor role |
+| **HTTP Status Code** | 403 |
+| **Nurse Rejected** | true |
+
+**Validations:**
+
+- Verified nurse role cannot access doctor-only endpoints
+- Confirmed consistent authorization logic
+- Validated proper error handling
+- Tested role boundaries
+
+### Test 19: requireDoctor › should reject unauthenticated user
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **req.user** | undefined |
+| --- | --- |
+| **Authentication Status** | Not authenticated |
+| **Required Role** | doctor |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthenticatedError |
+| --- | --- |
+| **Error Message** | Authentication required |
+| **HTTP Status Code** | 401 |
+| **Auth Check First** | true |
+
+**Validations:**
+
+- Verified authentication required before role check
+- Confirmed proper error for unauthenticated access
+- Validated HTTP 401 status for missing authentication
+- Ensured consistent security model
+
+## **Edge Cases Testing**
+
+### Test 20: Edge Cases › should handle null user role in requireRole
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **req.user.role** | null |
+| --- | --- |
+| **req.user** | { id: '123', role: null, email: '<test@example.com>' } |
+| **Required Role** | admin |
+| **Edge Case** | Null role value |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires admin role |
+| **HTTP Status Code** | 403 |
+| **Null Handled** | true |
+
+**Validations:**
+
