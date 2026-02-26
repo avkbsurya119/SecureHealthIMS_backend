@@ -1138,3 +1138,63 @@ Backend Testing - All 117 Tests Detailed
 ### Test 23: Edge Cases › should handle single role string in requireAnyRole
 
 **Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Input Type** | String (not array) |
+| --- | --- |
+| **Allowed Role** | 'doctor' |
+| **User Role** | doctor |
+| **req.user** | { id: '123', role: 'doctor' } |
+
+**Expected Outputs:**
+
+| **Authorization** | GRANTED |
+| --- | --- |
+| **next() Called** | true |
+| **Type Coercion** | String converted to array internally |
+| **Flexible Input** | Supported |
+
+**Validations:**
+
+- Verified middleware handles single string role
+- Confirmed automatic conversion from string to array
+- Validated flexible input type handling
+- Tested developer-friendly API
+
+### Test 24: Edge Cases › should be case-sensitive for roles
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Required Role** | admin |
+| --- | --- |
+| **User Role** | Admin |
+| **req.user** | { id: '123', role: 'Admin' } |
+| **Case Difference** | admin vs Admin |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires admin role |
+| **Authorization** | DENIED (case mismatch) |
+| **Case Sensitivity** | Confirmed |
+
+**Validations:**
+
+- Confirmed role comparison is case-sensitive
+- Verified 'Admin' != 'admin'
+- Validated importance of exact role string matching
+- Tested string comparison precision
+
+### Test 25: Edge Cases › should handle special characters in role names
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Required Role** | super-admin |
+| --- | --- |
+| **User Role** | super-admin |
