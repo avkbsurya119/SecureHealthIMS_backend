@@ -1078,3 +1078,63 @@ Backend Testing - All 117 Tests Detailed
 
 **Validations:**
 
+- Verified middleware handles null role gracefully
+- Confirmed null role treated as invalid/unauthorized
+- Validated proper error handling for edge case
+- Ensured no null reference errors
+
+### Test 21: Edge Cases › should handle undefined user role in requireRole
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **req.user** | { id: '123', email: '<test@example.com>' } |
+| --- | --- |
+| **req.user.role** | undefined (property missing) |
+| **Required Role** | admin |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires admin role |
+| **HTTP Status Code** | 403 |
+| **Undefined Handled** | true |
+
+**Validations:**
+
+- Confirmed undefined role property rejected
+- Verified missing role treated as authorization failure
+- Validated robust error handling for malformed user objects
+- Tested defensive programming
+
+### Test 22: Edge Cases › should handle empty roles array in requireAnyRole
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Allowed Roles** | \[\] |
+| --- | --- |
+| **req.user** | { id: '123', role: 'admin' } |
+| **Edge Case** | Zero allowed roles |
+
+**Expected Outputs:**
+
+| **Error Thrown** | UnauthorizedError |
+| --- | --- |
+| **Error Message** | This action requires one of these roles: |
+| **HTTP Status Code** | 403 |
+| **Empty Array Handled** | true |
+
+**Validations:**
+
+- Verified empty allowed roles array handled
+- Confirmed all users rejected when no roles allowed
+- Validated edge case of zero allowed roles
+- Tested boundary condition
+
+### Test 23: Edge Cases › should handle single role string in requireAnyRole
+
+**Status: PASS** | Duration: 0ms
