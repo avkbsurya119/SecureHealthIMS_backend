@@ -1258,3 +1258,63 @@ Backend Testing - All 117 Tests Detailed
 
 **Expected Outputs:**
 
+| **Error Thrown** | NotFoundError |
+| --- | --- |
+| **Error Message** | Doctor record not found |
+| **HTTP Status Code** | 404 |
+| **Data Integrity** | Checked |
+
+**Validations:**
+
+- Verified error when doctor user has no doctor record
+- Confirmed proper error type and status code
+- Validated data integrity check
+- Tested inconsistent data handling
+
+### Test 28: Edge Cases › should requirePatientOrAdmin handle missing patient ID parameter
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **User Role** | patient |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+| **req.params** | {}  |
+| **req.params.patientId** | undefined |
+| **Missing Parameter** | patientId |
+
+**Expected Outputs:**
+
+| **Error Thrown** | ValidationError or BadRequestError |
+| --- | --- |
+| **Error Message** | Patient ID parameter required |
+| **HTTP Status Code** | 400 or 422 |
+| **Parameter Validation** | Failed |
+
+**Validations:**
+
+- Verified handling of missing route parameters
+- Confirmed validation of required parameters
+- Validated error when patientId not provided in URL
+- Tested input validation
+
+### Test 29: Edge Cases › should handle multiple role checks in sequence
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **First Check** | requireRole('admin') |
+| --- | --- |
+| **Second Check** | requireAnyRole(\['admin', 'doctor'\]) |
+| **req.user** | { id: '123', role: 'admin' } |
+| **Middleware Chain** | Sequential |
+
+**Expected Outputs:**
+
+| **First next() Called** | true |
+| --- | --- |
+| **Second next() Called** | true |
+| **Total next() Calls** | 2   |
+| **Both Checks Passed** | true |
