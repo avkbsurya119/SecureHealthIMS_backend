@@ -1198,3 +1198,63 @@ Backend Testing - All 117 Tests Detailed
 | **Required Role** | super-admin |
 | --- | --- |
 | **User Role** | super-admin |
+| **req.user** | { id: '123', role: 'super-admin' } |
+| **Special Characters** | Hyphen |
+
+**Expected Outputs:**
+
+| **Authorization** | GRANTED |
+| --- | --- |
+| **next() Called** | true |
+| **Special Characters** | Hyphen handled correctly |
+| **Role Format** | Flexible |
+
+**Validations:**
+
+- Verified middleware supports roles with hyphens
+- Confirmed special characters in role names work properly
+- Validated no issues with non-alphanumeric role identifiers
+- Tested naming convention flexibility
+
+### Test 26: Edge Cases › should requirePatientOrAdmin reject when database error occurs
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **User Role** | patient |
+| --- | --- |
+| **req.user** | { id: 'user-123', role: 'patient' } |
+| **req.params.patientId** | patient-456 |
+| **Database Error** | Connection timeout / Query error |
+| **Error Type** | Database failure |
+
+**Expected Outputs:**
+
+| **Error Thrown** | Database Error |
+| --- | --- |
+| **Error Propagated** | true |
+| **next() Called** | false |
+| **Graceful Failure** | true |
+
+**Validations:**
+
+- Verified database errors properly caught
+- Confirmed errors propagated to error handler
+- Validated graceful failure on database issues
+- Tested error recovery path
+
+### Test 27: Edge Cases › should requireDoctor handle missing doctor record
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **User Role** | doctor |
+| --- | --- |
+| **req.user** | { id: 'user-doc', role: 'doctor' } |
+| **Database Query** | SELECT \* FROM doctors WHERE user_id = 'user-doc' |
+| **Database Result** | null (doctor record not found) |
+
+**Expected Outputs:**
+
