@@ -1,3 +1,8 @@
+/**
+ * Patient Management Routes
+ * Handles patient search, profile retrieval, and self-registration.
+ * Access is restricted based on medical role or ownership.
+ */
 import express from 'express';
 import { searchPatients, getPatientById, registerPatientAsUser, getMyPatientData } from '../controllers/patients.controller.js';
 import { authenticate, requireRole, authenticateSupabaseOnly } from '../middleware/auth.middleware.js';
