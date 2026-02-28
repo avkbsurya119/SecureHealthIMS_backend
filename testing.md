@@ -1318,3 +1318,63 @@ Backend Testing - All 117 Tests Detailed
 | **Second next() Called** | true |
 | **Total next() Calls** | 2   |
 | **Both Checks Passed** | true |
+| **Chain Complete** | true |
+
+**Validations:**
+
+- Verified multiple middleware can chain successfully
+- Confirmed each middleware independently validates
+- Validated next() called by each middleware in sequence
+- Tested middleware composition
+
+# **Module 3: services/consent.service**
+
+| **File** | consent.service.test.js |
+| --- | --- |
+| **Status** | ✓ PASSED (16/16 tests) |
+| **Duration** | 15ms |
+| **Average per Test** | 0.94ms |
+
+### Test 1: hasConsent › should return true when consent is granted
+
+**Status: PASS** | Duration: 2ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-123 |
+| --- | --- |
+| **Consent Type** | data_sharing |
+| **Database Query** | SELECT \* FROM consents WHERE patient_id = 'patient-123' AND consent_type = 'data_sharing' |
+| **Database Record** | { id: 'consent-1', patient_id: 'patient-123', consent_type: 'data_sharing', status: 'granted', granted_at: '2024-01-15T10:00:00Z' } |
+
+**Expected Outputs:**
+
+| **Return Value** | true |
+| --- | --- |
+| **Status Field** | granted |
+| **Consent Exists** | true |
+| **Access Allowed** | true |
+
+**Validations:**
+
+- Verified database query for consent record
+- Confirmed status field value is 'granted'
+- Validated function returns true for granted consent
+- Ensured proper query parameters (patient_id and consent_type)
+- Tested positive consent flow
+
+### Test 2: hasConsent › should return false when consent is denied
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-456 |
+| --- | --- |
+| **Consent Type** | treatment |
+| **Database Query** | SELECT \* FROM consents WHERE patient_id = 'patient-456' AND consent_type = 'treatment' |
+| **Database Record** | { id: 'consent-2', patient_id: 'patient-456', consent_type: 'treatment', status: 'denied', denied_at: '2024-01-10T14:30:00Z' } |
+
+**Expected Outputs:**
+
+| **Return Value** | false |
