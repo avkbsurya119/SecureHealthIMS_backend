@@ -1378,3 +1378,63 @@ Backend Testing - All 117 Tests Detailed
 **Expected Outputs:**
 
 | **Return Value** | false |
+| --- | --- |
+| **Status Field** | denied |
+| **Denial Respected** | true |
+| **Access Denied** | true |
+
+**Validations:**
+
+- Verified function checks consent status accurately
+- Confirmed 'denied' status results in false return
+- Validated patient consent preferences honored
+- Tested explicit denial handling
+
+### Test 3: hasConsent › should return false when no consent record exists (DEFAULT DENY)
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-789 |
+| --- | --- |
+| **Consent Type** | research |
+| **Database Query** | SELECT \* FROM consents WHERE patient_id = 'patient-789' AND consent_type = 'research' |
+| **Database Result** | null (no record found) |
+
+**Expected Outputs:**
+
+| **Return Value** | false |
+| --- | --- |
+| **Default Behavior** | DEFAULT DENY |
+| **Security Principle** | Deny by default for privacy |
+| **No Consent = No Access** | true |
+
+**Validations:**
+
+- Verified absence of consent record triggers default deny
+- Confirmed secure-by-default behavior
+- Validated privacy-first approach (no consent = no access)
+- Ensured false returned when database returns null
+- Tested HIPAA compliance principle
+
+### Test 4: hasConsent › should return false on database error (DEFAULT DENY)
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-999 |
+| --- | --- |
+| **Consent Type** | marketing |
+| **Database Error** | Connection timeout / Query failure |
+| **Error Handling** | Caught and logged |
+
+**Expected Outputs:**
+
+| **Return Value** | false |
+| --- | --- |
+| **Error Handling** | Caught and logged |
+| **Default Behavior** | DEFAULT DENY on error |
+| **System Secure** | true |
+
