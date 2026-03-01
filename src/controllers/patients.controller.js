@@ -14,7 +14,8 @@ import { ConsentService } from '../services/consent.service.js';
 export const searchPatients = asyncHandler(async (req, res) => {
     const { q } = req.query;
 
-    // Type validation: ensure q is a string (prevents array injection)
+    // Type validation: ensure q is a string (prevents array injection or other non-string attacks)
+    // We require at least 2 characters to prevent overly broad searches that might strain the DB.
     if (!q || typeof q !== 'string' || q.length < 2) {
         return ApiResponse.success(res, []);
     }
