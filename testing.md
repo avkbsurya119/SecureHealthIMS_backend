@@ -1438,3 +1438,63 @@ Backend Testing - All 117 Tests Detailed
 | **Default Behavior** | DEFAULT DENY on error |
 | **System Secure** | true |
 
+**Validations:**
+
+- Verified database errors don't throw exceptions to caller
+- Confirmed errors caught and logged internally
+- Validated fail-safe behavior (deny access on errors)
+- Ensured system remains secure even during database issues
+- Tested error resilience
+
+### Test 5: hasConsent › should check different consent types
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Test Consent Types** | \['data_sharing', 'treatment', 'research', 'marketing'\] |
+| --- | --- |
+| **Test Method** | Parameterized test for each type |
+| **Iterations** | 4   |
+
+**Expected Outputs:**
+
+| **All Types Tested** | true |
+| --- | --- |
+| **Queries Generated** | 4 (one per type) |
+| **Type-specific Logic** | Validated for each |
+| **Consistent Behavior** | true |
+
+**Validations:**
+
+- Iterated through all supported consent types
+- Verified function works consistently across types
+- Confirmed consent_type parameter correctly used in queries
+- Validated no hardcoded consent type assumptions
+- Tested consent type flexibility
+
+### Test 6: checkMultipleConsents › should check multiple consent types at once
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-abc |
+| --- | --- |
+| **Consent Types** | \['data_sharing', 'treatment', 'research'\] |
+| **Database Records** | Multiple records for different types |
+| **Query Optimization** | Single IN clause query |
+
+**Expected Outputs:**
+
+| **Return Type** | Object with consent type keys |
+| --- | --- |
+| **data_sharing** | true |
+| **treatment** | false |
+| **research** | true |
+| **Batch Query** | Optimized single database call |
+
+**Validations:**
+
+- Verified function can check multiple consents efficiently
+- Confirmed return object has keys for each consent type
