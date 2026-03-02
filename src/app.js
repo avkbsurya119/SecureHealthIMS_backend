@@ -93,6 +93,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // ============================================================================
 // API ROUTES
+// We separate routes into Public (unauthenticated) and Protected (authenticated)
+// based on the security requirements of each module.
 // ============================================================================
 
 // Public routes (no authentication required)
