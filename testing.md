@@ -1498,3 +1498,63 @@ Backend Testing - All 117 Tests Detailed
 
 - Verified function can check multiple consents efficiently
 - Confirmed return object has keys for each consent type
+- Validated boolean values for each consent type
+- Ensured optimized query (not N separate queries)
+- Tested mixed consent statuses (some granted, some denied)
+- Confirmed performance optimization
+
+### Test 7: checkMultipleConsents › should default all consents to false (DEFAULT DENY)
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-new |
+| --- | --- |
+| **Consent Types** | \['data_sharing', 'treatment', 'research'\] |
+| **Database Result** | Empty array (no consent records) |
+| **Default Behavior** | All false |
+
+**Expected Outputs:**
+
+| **Return Object** | { data_sharing: false, treatment: false, research: false } |
+| --- | --- |
+| **All Values** | false |
+| **Default Behavior** | DEFAULT DENY for all types |
+| **Privacy Protected** | true |
+
+**Validations:**
+
+- Verified all consent types default to false
+- Confirmed secure default when no records exist
+- Validated return object structure even with no data
+- Ensured privacy-first approach for new patients
+- Tested new patient onboarding scenario
+
+### Test 8: checkMultipleConsents › should handle database errors with DEFAULT DENY
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-error |
+| --- | --- |
+| **Consent Types** | \['data_sharing', 'treatment'\] |
+| **Database Error** | Query execution failed |
+| **Error Type** | Database connection error |
+
+**Expected Outputs:**
+
+| **Return Object** | { data_sharing: false, treatment: false } |
+| --- | --- |
+| **Error Logged** | true |
+| **Access Denied** | true for all types |
+| **Fail-Safe** | Activated |
+
+**Validations:**
+
+- Verified graceful error handling in batch consent check
+- Confirmed all consents default to false on error
+- Validated error logged but not thrown
+- Ensured system fails securely on database issues
+- Tested error recovery strategy
