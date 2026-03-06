@@ -1618,3 +1618,63 @@ Backend Testing - All 117 Tests Detailed
 - Validated status change from 'denied' to 'granted'
 - Ensured timestamp updated to reflect change
 - Tested consent reversal scenario (deny → grant)
+- Confirmed audit trail maintained
+
+### Test 11: grantConsent › should throw error on database failure
+
+**Status: PASS** | Duration: 7ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-fail |
+| --- | --- |
+| **Consent Type** | research |
+| **Database Error** | Constraint violation / Connection error |
+| **Expected Behavior** | Error propagation |
+
+**Expected Outputs:**
+
+| **Error Thrown** | true |
+| --- | --- |
+| **Error Type** | Database Error |
+| **Operation Failed** | true |
+| **Transaction Rolled Back** | true |
+
+**Validations:**
+
+- Verified database errors propagated to caller
+- Confirmed transaction rolled back on failure
+- Validated error thrown (not suppressed)
+- Ensured data integrity on write failures
+- Tested error handling in write operations
+
+### Test 12: revokeConsent › should revoke consent successfully
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-revoke |
+| --- | --- |
+| **Consent Type** | marketing |
+| **Existing Record** | { id: 'consent-456', patient_id: 'patient-revoke', consent_type: 'marketing', status: 'granted', granted_at: '2024-01-01T00:00:00Z' } |
+| **Action** | Revoke consent |
+
+**Expected Outputs:**
+
+| **SQL Operation** | UPDATE |
+| --- | --- |
+| **New Status** | revoked |
+| **Consent ID** | consent-456 |
+| **Timestamp** | revoked_at set to current time |
+| **Return Value** | { id: 'consent-456', status: 'revoked', revoked_at: '2024-02-11T...' } |
+
+**Validations:**
+
+- Verified consent can be revoked after being granted
+- Confirmed status updated to 'revoked'
+- Validated revocation timestamp recorded
+- Ensured function returns updated consent object
+- Tested patient's right to withdraw consent
+- Confirmed GDPR/HIPAA compliance
+
