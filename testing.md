@@ -1678,3 +1678,63 @@ Backend Testing - All 117 Tests Detailed
 - Tested patient's right to withdraw consent
 - Confirmed GDPR/HIPAA compliance
 
+### Test 13: revokeConsent › should throw error if revoke fails
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-fail |
+| --- | --- |
+| **Consent Type** | treatment |
+| **Database Error** | Record not found / Update failed |
+| **Expected Behavior** | Error thrown |
+
+**Expected Outputs:**
+
+| **Error Thrown** | true |
+| --- | --- |
+| **Error Type** | Database Error or NotFoundError |
+| **Operation Failed** | true |
+| **Silent Failure** | false |
+
+**Validations:**
+
+- Verified errors during revocation thrown
+- Confirmed failed revocations don't silently succeed
+- Validated proper error handling on database issues
+- Tested error propagation
+
+### Test 14: getPatientConsents › should return all consents for patient
+
+**Status: PASS** | Duration: 0ms
+
+**Test Inputs:**
+
+| **Patient ID** | patient-multi |
+| --- | --- |
+| **Database Query** | SELECT \* FROM consents WHERE patient_id = 'patient-multi' |
+| **Database Records** | Multiple consent records (data_sharing, treatment, research) |
+
+**Expected Outputs:**
+
+| **Return Type** | Array of consent objects |
+| --- | --- |
+| **Array Length** | \> 0 (multiple records) |
+| **Each Record Has** | id, patient_id, consent_type, status, granted_at, revoked_at |
+| **All Consents Returned** | true |
+
+**Validations:**
+
+- Verified function retrieves all patient consents
+- Confirmed return value is array of consent objects
+- Validated each object has required fields
+- Ensured proper filtering by patient_id
+- Tested retrieval of patient consent history
+- Confirmed complete consent audit trail available
+
+### Test 15: getPatientConsents › should return empty array if no consents
+
+**Status: PASS** | Duration: 1ms
+
+**Test Inputs:**
