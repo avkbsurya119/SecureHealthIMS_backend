@@ -7,6 +7,7 @@
 import { ConsentService } from '../services/consent.service.js';
 import { ConsentRequiredError, UnauthorizedError } from '../utils/errors.js';
 import { asyncHandler } from './errorHandler.middleware.js';
+import { isValidUUID } from '../utils/validation.utils.js';
 
 /**
  * Require medical records consent before accessing patient medical data
@@ -23,12 +24,19 @@ export const requireMedicalRecordsConsent = asyncHandler(async (req, res, next) 
     throw new UnauthorizedError('Authentication required');
   }
 
-  // Determine patient ID from request
-  const patientId = req.params.patientId || req.query.patientId || req.patientId || req.body.patient_id;
+  // Determine patient ID from request with validation
+  const rawPatientId = req.params.patientId || req.query.patientId || req.patientId || req.body?.patient_id;
 
-  if (!patientId) {
+  if (!rawPatientId) {
     throw new UnauthorizedError('Patient ID required for consent check');
   }
+
+  // Validate UUID format to prevent injection
+  if (!isValidUUID(rawPatientId)) {
+    throw new UnauthorizedError('Invalid patient ID format');
+  }
+
+  const patientId = rawPatientId;
 
   // RULE 1: Patients can always access their OWN data
   if (req.user.role === 'patient' && req.patientId === patientId) {
@@ -76,11 +84,17 @@ export const requireDataSharingConsent = asyncHandler(async (req, res, next) => 
     throw new UnauthorizedError('Authentication required');
   }
 
-  const patientId = req.params.patientId || req.query.patientId || req.patientId;
+  const rawPatientId = req.params.patientId || req.query.patientId || req.patientId;
 
-  if (!patientId) {
+  if (!rawPatientId) {
     throw new UnauthorizedError('Patient ID required for consent check');
   }
+
+  if (!isValidUUID(rawPatientId)) {
+    throw new UnauthorizedError('Invalid patient ID format');
+  }
+
+  const patientId = rawPatientId;
 
   // Only admins and the patient themselves can share data
   if (req.user.role === 'patient' && req.patientId === patientId) {
@@ -127,11 +141,17 @@ export const checkAppointmentConsent = asyncHandler(async (req, res, next) => {
     throw new UnauthorizedError('Authentication required');
   }
 
-  const patientId = req.params.patientId || req.patientId;
+  const rawPatientId = req.params.patientId || req.patientId;
 
-  if (!patientId) {
+  if (!rawPatientId) {
     return next(); // No patient context, skip consent check
   }
+
+  if (!isValidUUID(rawPatientId)) {
+    throw new UnauthorizedError('Invalid patient ID format');
+  }
+
+  const patientId = rawPatientId;
 
   // Check consent for appointment access
   const hasConsent = await ConsentService.hasConsent(patientId, 'medical_records');

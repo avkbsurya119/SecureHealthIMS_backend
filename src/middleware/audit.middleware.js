@@ -5,6 +5,7 @@
  */
 
 import { AuditService } from '../services/audit.service.js';
+import { isValidUUID } from '../utils/validation.utils.js';
 
 /**
  * Extract IP address from request
@@ -71,21 +72,23 @@ async function logAudit(req, res, resource, responseData) {
 
     const action = actionMap[req.method] || 'READ';
 
-    // Extract patient ID from various sources
-    const patientId = req.params.patientId || 
-                     req.query.patientId || 
-                     req.patientId || 
-                     req.body?.patient_id ||
-                     req.record?.patient_id ||
-                     req.appointment?.patient_id ||
-                     null;
+    // Extract and validate patient ID from various sources
+    const rawPatientId = req.params.patientId ||
+                        req.query.patientId ||
+                        req.patientId ||
+                        req.body?.patient_id ||
+                        req.record?.patient_id ||
+                        req.appointment?.patient_id ||
+                        null;
+    const patientId = rawPatientId && isValidUUID(rawPatientId) ? rawPatientId : null;
 
-    // Extract resource ID from response or params
-    const resourceId = req.params.id || 
-                      req.params.recordId || 
-                      req.params.appointmentId ||
-                      responseData?.data?.id ||
-                      null;
+    // Extract and validate resource ID from response or params
+    const rawResourceId = req.params.id ||
+                         req.params.recordId ||
+                         req.params.appointmentId ||
+                         responseData?.data?.id ||
+                         null;
+    const resourceId = rawResourceId && isValidUUID(rawResourceId) ? rawResourceId : null;
 
     // Build details object
     const details = {
@@ -122,7 +125,8 @@ async function logAudit(req, res, resource, responseData) {
  */
 export const logAction = async (req, action, resource, resourceId, details = {}) => {
   try {
-    const patientId = req.params.patientId || req.patientId || details.patientId || null;
+    const rawPatientId = req.params.patientId || req.patientId || details.patientId || null;
+    const patientId = rawPatientId && isValidUUID(rawPatientId) ? rawPatientId : null;
 
     await AuditService.log({
       userId: req.user?.id || null,
