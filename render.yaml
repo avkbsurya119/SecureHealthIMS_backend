@@ -1,0 +1,31 @@
+# =============================================================================
+# SecureHealthIMS Backend - Render Infrastructure as Code
+# =============================================================================
+# This file defines the Render deployment configuration.
+# Render will use this to configure the service automatically.
+#
+# Documentation: https://render.com/docs/blueprint-spec
+# =============================================================================
+
+services:
+  - type: web
+    name: securehealthims-backend
+    env: node
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false  # Set manually in Render dashboard
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: SUPABASE_ANON_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: FRONTEND_URL
+        value: https://secure-health-ims-frontend.vercel.app
+    autoDeploy: true  # Auto-deploy on push to main
