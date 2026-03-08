@@ -5,8 +5,7 @@
  */
 
 import { supabase } from '../config/supabaseClient.js';
-import { ApiResponse } from '../utils/errors.js';
-import { NotFoundError, UnauthorizedError, OwnershipError } from '../utils/errors.js';
+import { ApiResponse, NotFoundError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 
 /**

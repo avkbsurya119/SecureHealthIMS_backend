@@ -17,9 +17,6 @@ export const searchPatients = asyncHandler(async (req, res) => {
         return ApiResponse.success(res, []);
     }
 
-    // Sanitize query for logging (prevent log injection)
-    const sanitizedQuery = q.replace(/[\r\n]/g, '').substring(0, 100);
-
     // Search in users table where role is patient
     // Using ilike for case-insensitive partial match
     // Note: spaces in query are handled by ilike matching the literal string

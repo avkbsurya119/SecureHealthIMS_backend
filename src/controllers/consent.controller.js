@@ -6,7 +6,6 @@
 
 import { ConsentService } from '../services/consent.service.js';
 import { ApiResponse } from '../utils/errors.js';
-import { UnauthorizedError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 
 /**
