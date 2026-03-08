@@ -33,7 +33,7 @@ jobs:
   # ===========================================================================
 
   lint:
-    name: 🔍 Lint Check
+    name: Lint Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -50,10 +50,10 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
-        continue-on-error: true  # Backend ESLint config may need setup
+        continue-on-error: true
 
   security-audit:
-    name: 🔒 Security Audit
+    name: Security Audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -78,12 +78,12 @@ jobs:
 
       - name: Security audit summary
         run: |
-          echo "## 🔒 Security Audit Report" >> $GITHUB_STEP_SUMMARY
+          echo "## Security Audit Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ steps.audit.outputs.exit_code }}" == "0" ]]; then
-            echo "✅ No high or critical vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            echo "No high or critical vulnerabilities found" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Vulnerabilities detected - review required" >> $GITHUB_STEP_SUMMARY
+            echo "Vulnerabilities detected - review required" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             cat audit-output.txt >> $GITHUB_STEP_SUMMARY
@@ -91,7 +91,7 @@ jobs:
           fi
 
   syntax-check:
-    name: 📝 Syntax Check
+    name: Syntax Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -116,14 +116,14 @@ jobs:
         run: |
           echo "Checking all JavaScript files..."
           find src -name "*.js" -exec node --check {} \;
-          echo "✅ All source files have valid syntax"
+          echo "All source files have valid syntax"
 
   # ===========================================================================
   # Stage 2: Integration Tests
   # ===========================================================================
 
   integration-test:
-    name: 🧪 Integration Tests
+    name: Integration Tests
     runs-on: ubuntu-latest
     needs: [syntax-check]
     env:
@@ -149,7 +149,7 @@ jobs:
           if [ -f "scripts/db_test.js" ]; then
             node scripts/db_test.js
           else
-            echo "⚠️ Database test script not found, skipping..."
+            echo "Database test script not found, skipping..."
           fi
         continue-on-error: true
 
@@ -159,25 +159,25 @@ jobs:
           if [ -f "scripts/verify_jwt_login.js" ]; then
             node scripts/verify_jwt_login.js
           else
-            echo "⚠️ JWT test script not found, skipping..."
+            echo "JWT test script not found, skipping..."
           fi
         continue-on-error: true
 
       - name: Test summary
         run: |
-          echo "## 🧪 Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ steps.db_test.outcome }}" == "success" ]]; then
-            echo "| Database Connectivity | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Database Connectivity | Passed |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Database Connectivity | ⚠️ Skipped/Failed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Database Connectivity | Skipped/Failed |" >> $GITHUB_STEP_SUMMARY
           fi
           if [[ "${{ steps.jwt_test.outcome }}" == "success" ]]; then
-            echo "| JWT Verification | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| JWT Verification | Passed |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| JWT Verification | ⚠️ Skipped/Failed |" >> $GITHUB_STEP_SUMMARY
+            echo "| JWT Verification | Skipped/Failed |" >> $GITHUB_STEP_SUMMARY
           fi
 
   # ===========================================================================
@@ -185,60 +185,60 @@ jobs:
   # ===========================================================================
 
   quality-gate:
-    name: ✅ Quality Gate
+    name: Quality Gate
     runs-on: ubuntu-latest
     needs: [lint, security-audit, syntax-check, integration-test]
     if: always()
     steps:
       - name: Check quality gate status
         run: |
-          echo "## 🎯 Quality Gate Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Quality Gate Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Syntax check is critical
           if [[ "${{ needs.syntax-check.result }}" == "success" ]]; then
-            echo "✅ Syntax Check: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "- Syntax Check: Passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Syntax Check: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- Syntax Check: Failed" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Lint (non-blocking for now)
           if [[ "${{ needs.lint.result }}" == "success" ]]; then
-            echo "✅ Lint Check: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "- Lint Check: Passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Lint Check: Issues found (non-blocking)" >> $GITHUB_STEP_SUMMARY
+            echo "- Lint Check: Issues found (non-blocking)" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Security audit (warning)
           if [[ "${{ needs.security-audit.result }}" == "success" ]]; then
-            echo "✅ Security Audit: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "- Security Audit: Passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Security Audit: Review recommended" >> $GITHUB_STEP_SUMMARY
+            echo "- Security Audit: Review recommended" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Integration tests
           if [[ "${{ needs.integration-test.result }}" == "success" ]]; then
-            echo "✅ Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "- Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Integration Tests: Some tests skipped/failed" >> $GITHUB_STEP_SUMMARY
+            echo "- Integration Tests: Some tests skipped/failed" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Critical failure check
           if [[ "${{ needs.syntax-check.result }}" != "success" ]]; then
             echo ""
-            echo "❌ **Quality Gate: FAILED** - Critical checks did not pass" >> $GITHUB_STEP_SUMMARY
+            echo "**Quality Gate: FAILED** - Critical checks did not pass" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
           echo ""
-          echo "✅ **Quality Gate: PASSED**" >> $GITHUB_STEP_SUMMARY
+          echo "**Quality Gate: PASSED**" >> $GITHUB_STEP_SUMMARY
 
   # ===========================================================================
   # Stage 4: Production Health Check
   # ===========================================================================
 
   health-check:
-    name: 🏥 Production Health Check
+    name: Production Health Check
     runs-on: ubuntu-latest
     needs: [quality-gate]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -257,22 +257,22 @@ jobs:
           echo "status_code=$response" >> $GITHUB_OUTPUT
 
           if [ "$response" = "200" ]; then
-            echo "✅ Health check passed!"
+            echo "Health check passed!"
           else
-            echo "⚠️ Health check returned: $response"
+            echo "Health check returned: $response"
           fi
         continue-on-error: true
 
       - name: Health check summary
         run: |
-          echo "## 🏥 Production Health Check" >> $GITHUB_STEP_SUMMARY
+          echo "## Production Health Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Endpoint:** https://securehealthims-backend.onrender.com/api/health" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ steps.health.outputs.status_code }}" == "200" ]]; then
-            echo "✅ **Status: HEALTHY**" >> $GITHUB_STEP_SUMMARY
+            echo "**Status: HEALTHY**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ **Status: ${{ steps.health.outputs.status_code }}** (Render may still be deploying)" >> $GITHUB_STEP_SUMMARY
+            echo "**Status: ${{ steps.health.outputs.status_code }}** (Render may still be deploying)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
