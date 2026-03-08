@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(copy \"W:\\\\Semester 6\\\\Software Engineering\\\\Secure_Healthcare_Epics_and_User_Stories_v5.docx\" \"C:\\\\Users\\\\PROGRA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\S--Projects-SecureHealthIMS-SecureHealthIMS-backend\\\\88a1f8ea-830e-41ac-8466-9d6f280f7186\\\\scratchpad\\\\doc.zip\")",
+      "Bash(powershell -Command \"Expand-Archive -Path ''doc.zip'' -DestinationPath ''docx_extract'' -Force\")",
+      "Bash(powershell -Command \"Copy-Item ''W:\\\\Semester 6\\\\Software Engineering\\\\Secure_Healthcare_Epics_and_User_Stories_v5.docx'' -Destination ''C:\\\\Users\\\\PROGRA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\S--Projects-SecureHealthIMS-SecureHealthIMS-backend\\\\88a1f8ea-830e-41ac-8466-9d6f280f7186\\\\scratchpad\\\\doc.zip'' -Force; Expand-Archive -Path ''C:\\\\Users\\\\PROGRA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\S--Projects-SecureHealthIMS-SecureHealthIMS-backend\\\\88a1f8ea-830e-41ac-8466-9d6f280f7186\\\\scratchpad\\\\doc.zip'' -DestinationPath ''C:\\\\Users\\\\PROGRA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\S--Projects-SecureHealthIMS-SecureHealthIMS-backend\\\\88a1f8ea-830e-41ac-8466-9d6f280f7186\\\\scratchpad\\\\docx_extract'' -Force\")"
+    ]
+  }
+}

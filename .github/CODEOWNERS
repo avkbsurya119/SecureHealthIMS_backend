@@ -1,0 +1,29 @@
+# =============================================================================
+# SecureHealthIMS Backend - Code Owners
+# =============================================================================
+# These owners will be automatically requested for review when PRs modify
+# the matching files. Critical for healthcare security compliance.
+# =============================================================================
+
+# Default owner for all files
+* @avkbsurya119
+
+# CI/CD configuration - requires review
+.github/ @avkbsurya119
+
+# Security-critical middleware - ALWAYS requires review
+src/middleware/auth.middleware.js @avkbsurya119
+src/middleware/rbac.middleware.js @avkbsurya119
+src/middleware/consent.middleware.js @avkbsurya119
+src/middleware/audit.middleware.js @avkbsurya119
+
+# Database configuration - sensitive
+src/config/ @avkbsurya119
+database/ @avkbsurya119
+
+# All routes - API surface
+src/routes/ @avkbsurya119
+
+# Configuration files
+package.json @avkbsurya119
+.env.example @avkbsurya119

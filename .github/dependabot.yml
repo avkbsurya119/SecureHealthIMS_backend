@@ -1,0 +1,64 @@
+# =============================================================================
+# SecureHealthIMS Backend - Dependabot Configuration
+# =============================================================================
+# Automatically creates PRs for dependency updates to keep the project
+# secure and up-to-date. Critical for healthcare security compliance.
+# =============================================================================
+
+version: 2
+updates:
+  # NPM dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"  # More frequent for backend security
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "avkbsurya119"
+    labels:
+      - "dependencies"
+      - "security"
+      - "backend"
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+    # Prioritize security updates
+    groups:
+      security-critical:
+        patterns:
+          - "helmet"
+          - "jsonwebtoken"
+          - "express-rate-limit"
+          - "@supabase/*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+      express-ecosystem:
+        patterns:
+          - "express"
+          - "cors"
+        update-types:
+          - "minor"
+          - "patch"
+      dev-dependencies:
+        patterns:
+          - "nodemon"
+          - "eslint*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
