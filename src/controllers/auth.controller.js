@@ -1,6 +1,5 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ValidationError, UnauthenticatedError, ConflictError } from '../utils/errors.js';
-import { generateToken, verifyToken } from '../utils/jwt.utils.js';
 
 /**
  * Register a new user
@@ -612,7 +611,7 @@ export const resetPassword = async (req, res, next) => {
     }
 
     // Verify token and update password
-    const { data, error } = await supabase.auth.updateUser({
+    const { error } = await supabase.auth.updateUser({
       password: password
     });
 

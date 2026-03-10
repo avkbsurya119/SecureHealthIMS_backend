@@ -7,6 +7,7 @@
 import { supabase } from '../config/supabaseClient.js';
 import { UnauthorizedError, OwnershipError } from '../utils/errors.js';
 import { asyncHandler } from './errorHandler.middleware.js';
+import { isValidUUID } from '../utils/validation.utils.js';
 
 /**
  * Require specific role
@@ -124,6 +125,10 @@ export const requireRecordOwnership = asyncHandler(async (req, res, next) => {
     throw new UnauthorizedError('Record ID required');
   }
 
+  if (!isValidUUID(recordId)) {
+    throw new UnauthorizedError('Invalid record ID format');
+  }
+
   // Get the medical record
   const { data: record, error } = await supabase
     .from('medical_records')
@@ -164,6 +169,10 @@ export const requireAppointmentAccess = asyncHandler(async (req, res, next) => {
 
   if (!appointmentId) {
     throw new UnauthorizedError('Appointment ID required');
+  }
+
+  if (!isValidUUID(appointmentId)) {
+    throw new UnauthorizedError('Invalid appointment ID format');
   }
 
   // Get the appointment

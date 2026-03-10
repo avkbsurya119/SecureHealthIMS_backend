@@ -1,0 +1,75 @@
+# =============================================================================
+# SecureHealthIMS Backend - CodeQL Security Analysis
+# =============================================================================
+# Performs static application security testing (SAST) to identify
+# vulnerabilities in the codebase. Critical for healthcare compliance.
+#
+# Schedule: Weekly on Sundays at 00:00 UTC
+# Trigger: Also runs on PRs to main branch
+# =============================================================================
+
+name: CodeQL Security Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: 🔐 CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+          config: |
+            paths:
+              - src
+            paths-ignore:
+              - node_modules
+              - tests
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+      - name: Security scan summary
+        run: |
+          echo "## 🔐 CodeQL Security Scan Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Security analysis has been performed on the backend codebase." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Healthcare Compliance Note" >> $GITHUB_STEP_SUMMARY
+          echo "This scan helps ensure HIPAA compliance by identifying:" >> $GITHUB_STEP_SUMMARY
+          echo "- SQL injection vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Authentication/Authorization issues" >> $GITHUB_STEP_SUMMARY
+          echo "- Data exposure risks" >> $GITHUB_STEP_SUMMARY
+          echo "- Cryptographic weaknesses" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the Security tab for detailed findings." >> $GITHUB_STEP_SUMMARY

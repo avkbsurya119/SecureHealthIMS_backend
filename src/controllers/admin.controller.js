@@ -25,8 +25,9 @@ export const getDashboardStats = async (req, res, next) => {
 
         if (doctorError) throw new Error(doctorError.message);
         if (patientError) throw new Error(patientError.message);
-        // nurseError unused? no
         if (nurseError) throw new Error(nurseError.message);
+        if (appointmentError) throw new Error(appointmentError.message);
+        if (invoiceError) throw new Error(invoiceError.message);
 
         const totalIncome = invoices ? invoices.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0) : 0;
 

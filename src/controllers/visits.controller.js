@@ -112,7 +112,7 @@ export const getVisitById = asyncHandler(async (req, res) => {
  * - Doctors only
  */
 export const createVisit = asyncHandler(async (req, res) => {
-  const { patient_id, visit_date, diagnosis, notes, prescription_id } = req.body;
+  const { patient_id, visit_date, diagnosis, notes } = req.body;
 
   if (!patient_id || !visit_date) {
     throw new Error('Patient ID and Visit Date are required');
@@ -120,11 +120,10 @@ export const createVisit = asyncHandler(async (req, res) => {
 
   const visitData = {
     patient_id,
-    doctor_id: req.user.id, // Enforce doctor ownership
+    doctor_id: req.user.id,
     visit_date,
     diagnosis,
     notes
-    // prescription_id is optional link
   };
 
   const { data: newVisit, error } = await supabase

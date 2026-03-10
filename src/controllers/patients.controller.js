@@ -1,6 +1,5 @@
 import { supabase } from '../config/supabaseClient.js';
-import { ApiResponse } from '../utils/errors.js';
-import { NotFoundError, UnauthorizedError } from '../utils/errors.js';
+import { ApiResponse, NotFoundError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 
 /**
@@ -13,11 +12,10 @@ import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 export const searchPatients = asyncHandler(async (req, res) => {
     const { q } = req.query;
 
-    if (!q || q.length < 2) {
+    // Type validation: ensure q is a string (prevents array injection)
+    if (!q || typeof q !== 'string' || q.length < 2) {
         return ApiResponse.success(res, []);
     }
-
-    console.log(`Searching patients with query: "${q}"`);
 
     // Search in users table where role is patient
     // Using ilike for case-insensitive partial match
@@ -32,12 +30,6 @@ export const searchPatients = asyncHandler(async (req, res) => {
 
     if (error) {
         console.error("Search failed:", error);
-        throw error;
-    }
-
-    console.log(`Found ${patients?.length || 0} patients`);
-
-    if (error) {
         throw error;
     }
 
