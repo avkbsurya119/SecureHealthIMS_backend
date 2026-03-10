@@ -11,12 +11,12 @@ router.post('/register-user', authenticateSupabaseOnly, registerPatientAsUser);
 // Routes that require full authentication (user must be in users table)
 router.use(authenticate);
 
-// Search Patients (Doctor/Admin/Nurse only)
-router.get('/search', requireRole(['doctor', 'admin', 'nurse']), searchPatients);
+// Search Patients (Doctor/Nurse only - Admin excluded for patient privacy)
+router.get('/search', requireRole(['doctor', 'nurse']), searchPatients);
 
-// Get Patient by ID (Accessible to medical staff)
+// Get Patient by ID (Accessible to medical staff only)
 // Note: Patients should access their own profile via /profile/me or /auth/me
-router.get('/:id', requireRole(['doctor', 'admin', 'nurse']), getPatientById);
+router.get('/:id', requireRole(['doctor', 'nurse']), getPatientById);
 
 export default router;
 
