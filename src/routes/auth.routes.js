@@ -1,6 +1,8 @@
 import express from 'express';
 import {
   register,
+  initiateRegistration,
+  verifyRegistration,
   login,
   logout,
   getCurrentUser,
@@ -23,6 +25,26 @@ router.post(
   '/register',
   validate(validators.register),
   register
+);
+
+/**
+ * @route   POST /api/auth/register/initiate
+ * @desc    Step 1: Create auth user and send OTP email
+ * @access  Public
+ */
+router.post(
+  '/register/initiate',
+  initiateRegistration
+);
+
+/**
+ * @route   POST /api/auth/register/verify
+ * @desc    Step 2: Verify OTP and complete registration
+ * @access  Public
+ */
+router.post(
+  '/register/verify',
+  verifyRegistration
 );
 
 /**

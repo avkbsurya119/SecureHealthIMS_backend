@@ -99,7 +99,7 @@ export const schemas = {
     register: {
       email: { required: true, type: 'email' },
       password: { required: true, type: 'string', minLength: 8, maxLength: 100 },
-      role: { required: true, type: 'enum', values: ['patient', 'doctor'] },
+      role: { required: true, type: 'enum', values: ['patient', 'doctor', 'nurse'] },
       name: { required: true, type: 'string', minLength: 2, maxLength: 100 },
       phone: { required: false, type: 'string', maxLength: 20 },
       // Patient-specific

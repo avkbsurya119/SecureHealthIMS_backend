@@ -14,8 +14,8 @@ export const register = async (req, res, next) => {
       throw new ValidationError('Email and password are required');
     }
 
-    if (!role || !['patient', 'doctor'].includes(role)) {
-      throw new ValidationError('Role must be either "patient" or "doctor"');
+    if (!role || !['patient', 'doctor', 'nurse'].includes(role)) {
+      throw new ValidationError('Role must be "patient", "doctor", or "nurse"');
     }
 
     // Role-specific validation
@@ -31,6 +31,12 @@ export const register = async (req, res, next) => {
     if (role === 'doctor') {
       if (!name || !specialization) {
         throw new ValidationError('Doctor registration requires: name, specialization');
+      }
+    }
+
+    if (role === 'nurse') {
+      if (!name) {
+        throw new ValidationError('Nurse registration requires: name');
       }
     }
 
@@ -178,6 +184,188 @@ export const register = async (req, res, next) => {
     }
 
     res.status(201).json(responseData);
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Initiate Registration (Step 1) - Create Supabase auth user & send OTP
+ * POST /api/auth/register/initiate
+ */
+export const initiateRegistration = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      throw new ValidationError('Email and password are required');
+    }
+
+    if (password.length < 8) {
+      throw new ValidationError('Password must be at least 8 characters');
+    }
+
+    // Create auth user in Supabase (this sends a confirmation email with OTP)
+    const { createClient } = await import('@supabase/supabase-js');
+    const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+    const { data: authData, error: authError } = await anonSupabase.auth.signUp({
+      email,
+      password
+    });
+
+    if (authError) {
+      if (authError.message.includes('already registered') || authError.message.includes('already created')) {
+        throw new ConflictError('User with this email already exists');
+      }
+      throw new Error(authError.message);
+    }
+
+    if (!authData.user) {
+      throw new Error('Registration initiation failed');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your email. Please check your inbox.'
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Verify Registration (Step 2) - Verify OTP & create user record
+ * POST /api/auth/register/verify
+ */
+export const verifyRegistration = async (req, res, next) => {
+  try {
+    const { email, password, token, role, name, phone, address, specialization, department_id, date_of_birth, gender } = req.body;
+
+    if (!email || !token) {
+      throw new ValidationError('Email and verification token are required');
+    }
+
+    if (!role || !['patient', 'doctor', 'nurse'].includes(role)) {
+      throw new ValidationError('Role must be "patient", "doctor", or "nurse"');
+    }
+
+    // Role-specific validation
+    if (role === 'patient') {
+      if (!name || !date_of_birth || !gender) {
+        throw new ValidationError('Patient registration requires: name, date_of_birth, gender');
+      }
+      if (!['male', 'female', 'other'].includes(gender)) {
+        throw new ValidationError('Gender must be male, female, or other');
+      }
+    }
+
+    if (role === 'doctor') {
+      if (!name || !specialization) {
+        throw new ValidationError('Doctor registration requires: name, specialization');
+      }
+    }
+
+    if (role === 'nurse') {
+      if (!name) {
+        throw new ValidationError('Nurse registration requires: name');
+      }
+    }
+
+    // Verify the OTP token with Supabase
+    const { createClient } = await import('@supabase/supabase-js');
+    const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+    const { data: verifyData, error: verifyError } = await anonSupabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'signup'
+    });
+
+    if (verifyError) {
+      throw new ValidationError(verifyError.message || 'Invalid or expired verification code');
+    }
+
+    if (!verifyData.user) {
+      throw new Error('Verification failed');
+    }
+
+    const userId = verifyData.user.id;
+
+    // Auto-confirm email
+    await supabase.auth.admin.updateUserById(userId, { 
+      email_confirm: true,
+      user_metadata: { role: role }
+    });
+
+    // Create user record in users table
+    const userData = {
+      id: userId,
+      role: role,
+      is_active: true,
+      email: email,
+      full_name: name,
+      phone: phone,
+      address: address,
+      date_of_birth: date_of_birth,
+      gender: gender,
+      specialization: specialization,
+      department: department_id,
+      approval_status: role === 'doctor' ? 'pending' : 'approved',
+      profile_completed: false
+    };
+
+    const { error: userError } = await supabase
+      .from('users')
+      .insert(userData);
+
+    if (userError) {
+      // Cleanup auth user if DB insert fails
+      await supabase.auth.admin.deleteUser(userId);
+      throw new Error(`Failed to create user record: ${userError.message}`);
+    }
+
+    // Create default consents for patient
+    if (role === 'patient') {
+      const consentTypes = ['medical_records', 'data_sharing', 'treatment', 'research'];
+      const consents = consentTypes.map(type => ({
+        consent_type: type,
+        status: 'denied',
+        denied_at: new Date().toISOString()
+      }));
+
+      const { error: patientError } = await supabase
+        .from('patients')
+        .insert({
+          user_id: userId,
+          name: name,
+          email: email
+        });
+
+      if (!patientError) {
+        const { data: pData } = await supabase.from('patients').select('id').eq('user_id', userId).single();
+        if (pData) {
+          const mappedConsents = consents.map(c => ({ ...c, patient_id: pData.id }));
+          await supabase.from('patient_consents').insert(mappedConsents);
+        }
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration completed successfully',
+      data: {
+        user: {
+          id: userId,
+          email,
+          role,
+          name,
+          verified: role === 'doctor' ? false : true
+        }
+      }
+    });
 
   } catch (error) {
     next(error);
