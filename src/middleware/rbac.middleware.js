@@ -48,21 +48,16 @@ export const requireAnyRole = (roles) => {
 };
 
 /**
- * Require patient role OR admin override
+ * Require patient role only
  * Patients can only access their own data
+ * Admin is explicitly excluded to enforce least-privilege access
  */
 export const requirePatientOrAdmin = asyncHandler(async (req, res, next) => {
   if (!req.user) {
     throw new UnauthorizedError('Authentication required');
   }
 
-  // Admin can access anything
-  if (req.user.role === 'admin') {
-    req.isAdmin = true;
-    return next();
-  }
-
-  // Must be patient role
+  // Must be patient role - admin cannot access patient medical data
   if (req.user.role !== 'patient') {
     throw new UnauthorizedError('This action is only available to patients');
   }
@@ -140,10 +135,9 @@ export const requireRecordOwnership = asyncHandler(async (req, res, next) => {
     throw new OwnershipError('Medical record not found');
   }
 
-  // Admin can modify any record
+  // Admin cannot modify medical records - only the creating doctor can
   if (req.user.role === 'admin') {
-    req.record = record;
-    return next();
+    throw new OwnershipError('Administrators cannot modify medical records');
   }
 
   // Must be the doctor who created it

@@ -81,10 +81,10 @@ export const getPendingDoctors = async (req, res, next) => {
  */
 export const getAllUsers = async (req, res, next) => {
     try {
-        // Fetch patients
+        // Fetch patients - only non-sensitive fields (no phone, gender, medical data, consents)
         const { data: patients, error: patientsError } = await supabase
             .from('patients')
-            .select('id, name, email, phone, gender, created_at, verified, user_id, patient_consents(status)')
+            .select('id, name, email, created_at, verified, user_id')
             .order('created_at', { ascending: false });
 
         if (patientsError) throw new Error(patientsError.message);
@@ -97,39 +97,36 @@ export const getAllUsers = async (req, res, next) => {
 
         if (doctorsError) throw new Error(doctorsError.message);
 
-        // Fetch nurses (from users table directly as they might not have a profile table yet, or if they do we verify)
-        // We fetch users where role='nurse'
+        // Fetch nurses
         const { data: nurses, error: nursesError } = await supabase
             .from('users')
-            .select('id, full_name, email, phone, created_at, is_active')
+            .select('id, full_name, email, created_at, is_active')
             .eq('role', 'nurse')
             .order('created_at', { ascending: false });
 
         if (nursesError) throw new Error(nursesError.message);
 
-        // Combine and format
+        // Combine and format - patient details are minimal
         const allUsers = [
             ...patients.map(p => ({
-                ...p,
-                role: 'patient',
-                consent: p.patient_consents && p.patient_consents.some(c => c.status === 'granted')
+                id: p.id,
+                name: p.name,
+                email: p.email,
+                created_at: p.created_at,
+                verified: p.verified,
+                user_id: p.user_id,
+                role: 'patient'
             })),
             ...doctors.map(d => ({ ...d, role: 'doctor' })),
             ...nurses.map(n => ({
-                ...n,
-                name: n.full_name, // Map full_name to name
+                id: n.id,
+                name: n.full_name,
+                email: n.email,
+                created_at: n.created_at,
                 role: 'nurse',
-                verified: n.is_active // Map is_active to verified for nurses
+                verified: n.is_active
             }))
         ];
-
-        console.log('📊 Admin Users Debug:');
-        console.log('  - Patients:', patients?.length || 0);
-        console.log('  - Doctors:', doctors?.length || 0);
-        console.log('  - Nurses:', nurses?.length || 0);
-        if (doctors?.length > 0) {
-            console.log('  - Sample doctor:', JSON.stringify(doctors[0], null, 2));
-        }
 
         res.json({
             success: true,
@@ -214,15 +211,20 @@ export const getAllAppointments = async (req, res, next) => {
     try {
         const { data: appointments, error } = await supabase
             .from('appointments')
-            .select('*, patients(name), doctors(name)')
+            .select('id, date, time, status, doctor_id, patient_id, doctors(name)')
             .order('date', { ascending: false });
 
         if (error) throw new Error(error.message);
 
-        // Map join fields to flat structure if needed, or frontend handles it
+        // Admin sees appointment metadata but not patient names (privacy)
         const formatted = appointments.map(a => ({
-            ...a,
-            patient_name: a.patients?.name || 'Unknown',
+            id: a.id,
+            date: a.date,
+            time: a.time,
+            status: a.status,
+            doctor_id: a.doctor_id,
+            patient_id: a.patient_id,
+            patient_name: '[REDACTED]',
             doctor_name: a.doctors?.name || 'Unknown'
         }));
 
@@ -243,14 +245,19 @@ export const getAllInvoices = async (req, res, next) => {
     try {
         const { data: invoices, error } = await supabase
             .from('invoices')
-            .select('*, patients(name)')
+            .select('id, date, total, status, patient_id')
             .order('date', { ascending: false });
 
         if (error) throw new Error(error.message);
 
+        // Admin sees invoice metadata but not patient names (privacy)
         const formatted = invoices.map(i => ({
-            ...i,
-            patient_name: i.patients?.name || 'Unknown'
+            id: i.id,
+            date: i.date,
+            total: i.total,
+            status: i.status,
+            patient_id: i.patient_id,
+            patient_name: '[REDACTED]'
         }));
 
         res.json({
