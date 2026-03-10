@@ -7,6 +7,7 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiResponse, NotFoundError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
+import { AuditService } from '../services/audit.service.js';
 
 /**
  * CREATE Medical Record
@@ -100,6 +101,21 @@ export const getPatientMedicalRecords = asyncHandler(async (req, res) => {
     throw error;
   }
 
+  // Audit Log: Record that a doctor or nurse viewed this patient's medical records list
+  if (req.user && req.user.role !== 'patient') {
+    await AuditService.logRead(
+      req.user.id,
+      patientId,
+      'medical_records_list',
+      patientId,
+      {
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { role: req.user.role, action: 'viewed_medical_records_list' }
+      }
+    );
+  }
+
   return ApiResponse.success(res, {
     patient: {
       id: patient.id,
@@ -152,6 +168,21 @@ export const getMedicalRecord = asyncHandler(async (req, res) => {
 
   if (error || !record) {
     throw new NotFoundError('Medical record');
+  }
+
+  // Audit Log: Record that a doctor or nurse viewed this specific medical record
+  if (req.user && req.user.role !== 'patient') {
+    await AuditService.logRead(
+      req.user.id,
+      record.patient_id,
+      'medical_record_detail',
+      record.id,
+      {
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { role: req.user.role, action: 'viewed_medical_record' }
+      }
+    );
   }
 
   return ApiResponse.success(res, record);

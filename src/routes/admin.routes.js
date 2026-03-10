@@ -3,13 +3,15 @@ import {
     getPendingDoctors,
     getAllUsers,
     approveDoctor,
+    approveNurse,
     banUser,
     unbanUser,
     getDoctorDetails,
     getDashboardStats,
     getAllAppointments,
     getAllInvoices,
-    getSecurityAssumptions
+    getSecurityAssumptions,
+    getIncidentLogs
 } from '../controllers/admin.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/rbac.middleware.js';
@@ -55,6 +57,13 @@ router.get('/doctors/:id', getDoctorDetails);
 router.post('/approve/:id', approveDoctor);
 
 /**
+ * @route   POST /api/admin/approve-nurse/:id
+ * @desc    Approve a nurse account
+ * @access  Private (Admin only)
+ */
+router.post('/approve-nurse/:id', approveNurse);
+
+/**
  * @route   POST /api/admin/ban/:id
  * @desc    Ban a user account (doctor or patient)
  * @access  Private (Admin only)
@@ -88,5 +97,12 @@ router.get('/invoices', getAllInvoices);
  * @access  Private (Admin only)
  */
 router.get('/security-assumptions', getSecurityAssumptions);
+
+/**
+ * @route   GET /api/admin/incidents
+ * @desc    Get all security incident logs
+ * @access  Private (Admin only)
+ */
+router.get('/incidents', getIncidentLogs);
 
 export default router;

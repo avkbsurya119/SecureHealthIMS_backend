@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ValidationError, UnauthenticatedError, ConflictError } from '../utils/errors.js';
+import { IncidentService } from '../services/incident.service.js';
 
 /**
  * Register a new user
@@ -90,7 +91,7 @@ export const register = async (req, res, next) => {
       specialization: specialization,
       department: department_id, // Map department_id to department column
       // Default status
-      approval_status: role === 'doctor' ? 'pending' : 'approved',
+      approval_status: role === 'doctor' || role === 'nurse' ? 'pending' : 'approved',
       profile_completed: false // Default to false, they can complete later
     };
 
@@ -313,7 +314,7 @@ export const verifyRegistration = async (req, res, next) => {
       gender: gender,
       specialization: specialization,
       department: department_id,
-      approval_status: role === 'doctor' ? 'pending' : 'approved',
+      approval_status: role === 'doctor' || role === 'nurse' ? 'pending' : 'approved',
       profile_completed: false
     };
 
@@ -362,7 +363,7 @@ export const verifyRegistration = async (req, res, next) => {
           email,
           role,
           name,
-          verified: role === 'doctor' ? false : true
+          verified: role === 'doctor' || role === 'nurse' ? false : true,
         }
       }
     });
@@ -396,6 +397,14 @@ export const login = async (req, res, next) => {
 
     if (error) {
       console.error('Login error:', error);
+      // Log suspicious failed access attempt
+      await IncidentService.log({
+        eventType: 'FAILED_LOGIN',
+        severity: 'medium',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { email, reason: 'invalid_credentials' }
+      });
       throw new UnauthenticatedError('Invalid email or password');
     }
 
@@ -411,6 +420,13 @@ export const login = async (req, res, next) => {
     }
 
     if (!userData.is_active) {
+      await IncidentService.log({
+        eventType: 'SUSPICIOUS_ACCESS',
+        severity: 'high',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { email, reason: 'deactivated_account_login_attempt' }
+      });
       throw new UnauthenticatedError('Account is deactivated');
     }
 
@@ -420,7 +436,25 @@ export const login = async (req, res, next) => {
 
     // For backward compatibility or if using new schema:
     if (userData.role === 'doctor' && userData.approval_status !== 'approved') {
+      await IncidentService.log({
+        eventType: 'SUSPICIOUS_ACCESS',
+        severity: 'medium',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { email, role: 'doctor', reason: 'pending_approval_login_attempt' }
+      });
       throw new UnauthenticatedError('Account pending approval');
+    }
+
+    if (userData.role === 'nurse' && userData.approval_status !== 'approved') {
+      await IncidentService.log({
+        eventType: 'SUSPICIOUS_ACCESS',
+        severity: 'medium',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { email, role: 'nurse', reason: 'banned_or_pending_login_attempt' }
+      });
+      throw new UnauthenticatedError('Account pending administrative approval');
     }
 
     // LEGACY DATA SYNC: If users table is empty (e.g. full_name is null), try to fetch from legacy tables

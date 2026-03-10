@@ -100,7 +100,7 @@ export const getAllUsers = async (req, res, next) => {
         // Fetch nurses
         const { data: nurses, error: nursesError } = await supabase
             .from('users')
-            .select('id, full_name, email, created_at, is_active')
+            .select('id, full_name, email, created_at, is_active, approval_status')
             .eq('role', 'nurse')
             .order('created_at', { ascending: false });
 
@@ -124,7 +124,8 @@ export const getAllUsers = async (req, res, next) => {
                 email: n.email,
                 created_at: n.created_at,
                 role: 'nurse',
-                verified: n.is_active
+                isverified: n.approval_status !== 'approved',
+                verified: n.is_active // keep verified to avoid breaking other stats UI if needed
             }))
         ];
 
@@ -197,6 +198,44 @@ export const approveDoctor = async (req, res, next) => {
         res.json({
             success: true,
             message: `Doctor ${doctor.name} has been approved`
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Approve a nurse account (sets isverified = false allowing login)
+ * POST /api/admin/approve-nurse/:id
+ */
+export const approveNurse = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        // Verify user is a nurse
+        const { data: nurse, error: fetchError } = await supabase
+            .from('users')
+            .select('id, full_name, email, role')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !nurse || nurse.role !== 'nurse') {
+            throw new NotFoundError('Nurse not found');
+        }
+
+        // Update isverified status to false (approved) by setting approval_status to 'approved'
+        const { error: updateError } = await supabase
+            .from('users')
+            .update({ approval_status: 'approved' })
+            .eq('id', id);
+
+        if (updateError) {
+            throw new Error(updateError.message);
+        }
+
+        res.json({
+            success: true,
+            message: `Nurse ${nurse.full_name} has been approved`
         });
     } catch (error) {
         next(error);
@@ -378,6 +417,30 @@ export const unbanUser = async (req, res, next) => {
         res.json({
             success: true,
             message: `User ${user.name} has been unbanned`
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get all security incident logs
+ * GET /api/admin/incidents
+ */
+export const getIncidentLogs = async (req, res, next) => {
+    try {
+        const { limit = 100 } = req.query;
+        const { data: logs, error } = await supabase
+            .from('incident_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) throw new Error(error.message);
+
+        res.json({
+            success: true,
+            data: logs || []
         });
     } catch (error) {
         next(error);
