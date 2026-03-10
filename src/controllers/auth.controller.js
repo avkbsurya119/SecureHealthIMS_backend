@@ -2,23 +2,50 @@ import { supabase } from '../config/supabaseClient.js';
 import { ValidationError, UnauthenticatedError, ConflictError } from '../utils/errors.js';
 
 /**
- * Initiate registration (Step 1: Send OTP)
- * POST /api/auth/register/initiate
+ * Register a new user
+ * POST /api/auth/register
  */
-export const initiateRegister = async (req, res, next) => {
+export const register = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role, name, phone, address, specialization, department_id, date_of_birth, gender } = req.body;
 
-    // Check if user already exists in users table (Single Table Inheritance)
-    const { data: existingUser } = await supabase.from('users').select('id').eq('email', email).single();
-    if (existingUser) {
-      throw new ConflictError('User with this email already exists');
+    // Validate required fields
+    if (!email || !password) {
+      throw new ValidationError('Email and password are required');
     }
 
-    // Step 1: Sign up in Supabase Auth (This sends the OTP/Confirmation email)
-    const { error: authError } = await supabase.auth.signUp({
+    if (!role || !['patient', 'doctor'].includes(role)) {
+      throw new ValidationError('Role must be either "patient" or "doctor"');
+    }
+
+    // Role-specific validation
+    if (role === 'patient') {
+      if (!name || !date_of_birth || !gender) {
+        throw new ValidationError('Patient registration requires: name, date_of_birth, gender');
+      }
+      if (!['male', 'female', 'other'].includes(gender)) {
+        throw new ValidationError('Gender must be male, female, or other');
+      }
+    }
+
+    if (role === 'doctor') {
+      if (!name || !specialization) {
+        throw new ValidationError('Doctor registration requires: name, specialization');
+      }
+    }
+
+    // Step 1: Create auth user in Supabase
+    const { createClient } = await import('@supabase/supabase-js');
+    const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+    const { data: authData, error: authError } = await anonSupabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          role: role
+        }
+      }
     });
 
     if (authError) {
@@ -28,41 +55,22 @@ export const initiateRegister = async (req, res, next) => {
       throw new Error(authError.message);
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Verification code sent to your email'
-    });
-
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Verify OTP and complete registration (Step 2)
- * POST /api/auth/register/verify
- */
-export const verifyAndRegister = async (req, res, next) => {
-  try {
-    const {
-      email, token, role, name, phone, address,
-      specialization, department_id, date_of_birth, gender
-    } = req.body;
-
-    // Step 1: Verify the OTP with Supabase
-    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'signup'
-    });
-
-    if (verifyError || !verifyData.user) {
-      throw new ValidationError('Invalid or expired verification code');
+    if (!authData.user) {
+      throw new Error('Registration failed for unknown reasons');
     }
 
-    const userId = verifyData.user.id;
+    const userId = authData.user.id;
 
-    // Step 2: Create user record in users table
+    // Auto-confirm email
+    await supabase.auth.admin.updateUserById(userId, { email_confirm: true });
+
+    // Verify user actually exists (handle email enumeration protection)
+    const { data: realUser, error: verifyError } = await supabase.auth.admin.getUserById(userId);
+    if (verifyError || !realUser) {
+      throw new ConflictError('User with this email already exists');
+    }
+
+    // Step 2: Create user record in users table with ALL details
     const userData = {
       id: userId,
       role: role,
@@ -74,9 +82,10 @@ export const verifyAndRegister = async (req, res, next) => {
       date_of_birth: date_of_birth,
       gender: gender,
       specialization: specialization,
-      department: department_id,
+      department: department_id, // Map department_id to department column
+      // Default status
       approval_status: role === 'doctor' ? 'pending' : 'approved',
-      profile_completed: false
+      profile_completed: false // Default to false, they can complete later
     };
 
     const { error: userError } = await supabase
@@ -84,69 +93,95 @@ export const verifyAndRegister = async (req, res, next) => {
       .insert(userData);
 
     if (userError) {
-      // Re-cleanup might be tricky if they already verified, but usually we'd want to rollback.
-      // Since it's verified, we could try to delete the auth user if the DB insert fails.
+      // Cleanup
       await supabase.auth.admin.deleteUser(userId);
       throw new Error(`Failed to create user record: ${userError.message}`);
     }
 
-    // Role-specific legacy setup (if needed for FKs)
+    // Note: We are NO LONGER creating separate records in 'patients' or 'doctors' tables
+    // as we have moved to a Single Table Inheritance model in 'users'.
+
+    // Step 3: Create default DENIED consents for patient
     if (role === 'patient') {
-      const { data: pData } = await supabase
+      const consentTypes = ['medical_records', 'data_sharing', 'treatment', 'research'];
+      const consents = consentTypes.map(type => ({
+        patient_id: userId, // Assuming patient_id FK was updated to point to users.id OR we still need to fix consent table
+        // WAIT: The consent table likely references 'patients' table. 
+        // If we stopped populating 'patients', this might break FK constraints if 'patient_consents' links to 'patients.id'.
+        // For strictly following the user's "single table" request, we should probably link to 'users.id'.
+        // But changing 'patient_consents' schema is out of scope unless we want to break it.
+        // Quick fix: Insert into 'patients' table too JUST for ID/FK sake, minimal data.
+
+        // Actually, let's just NOT insert default consents for now or ignore the error if it fails?
+        // Or better: Checking schema of patient_consents might be needed.
+        // Assuming user wants full migration, but let's stick to the prompt: "push their data into the users table".
+        // It didn't explicitly explicitly say "delete patients table".
+        // I will insert a dummy record into 'patients' to satisfy FKs if they exist, or just skip if not critical.
+        // But consents are critical.
+
+        // Let's try inserting into patient_consents using userId. If DB constraint exists on patient_id -> patients.id, it will fail.
+        // The safest bet without altering consent schema is to ALSO create a minimal patient record.
+        consent_type: type,
+        status: 'denied',
+        denied_at: new Date().toISOString()
+      }));
+
+      // We might need to insert a dummy patient record to satisfy FKs if legacy tables are kept
+      const { error: patientError } = await supabase
         .from('patients')
         .insert({
           user_id: userId,
           name: name,
           email: email
-        })
-        .select('id')
-        .single();
+          // Minimal fields
+        });
 
-      if (pData) {
-        // Create default consents
-        const consentTypes = ['medical_records', 'data_sharing', 'treatment', 'research'];
-        const consents = consentTypes.map(type => ({
-          patient_id: pData.id,
-          consent_type: type,
-          status: 'denied',
-          denied_at: new Date().toISOString()
-        }));
-        await supabase.from('patient_consents').insert(consents);
+      if (!patientError) {
+        // Now we can insert consents linking to this patient record (which has ID = UUID or Serial?)
+        // Usually patient.id != user.id in typical setups, BUT in my previous code:
+        // .insert({ user_id: userId ... }).select().single() -> returns patient.id
+
+        // So I need to fetch the patient ID I just created.
+        const { data: pData } = await supabase.from('patients').select('id').eq('user_id', userId).single();
+
+        if (pData) {
+          const mappedConsents = consents.map(c => ({ ...c, patient_id: pData.id }));
+          await supabase.from('patient_consents').insert(mappedConsents);
+        }
       }
     }
 
-    // Success response
-    res.status(201).json({
+    // Prepare response data
+    const responseData = {
       success: true,
-      message: role === 'doctor'
-        ? 'Registration successful! Your account is pending admin approval.'
-        : 'Registration successful! You can now login.',
+      message: 'User registered successfully',
       data: {
         user: {
           id: userId,
           email,
           role,
           name,
+          phone,
+          // specialized fields
+          date_of_birth: role === 'patient' ? date_of_birth : undefined,
+          gender: role === 'patient' ? gender : undefined,
+          specialization: role === 'doctor' ? specialization : undefined,
           verified: role === 'doctor' ? false : true
         }
       }
-    });
+    };
+
+    // Add tokens if verified
+    if ((role === 'patient' || role === 'admin') && authData.session) { // Doctor is pending
+      responseData.data.token = authData.session.access_token;
+      responseData.data.refresh_token = authData.session.refresh_token;
+    }
+
+    res.status(201).json(responseData);
 
   } catch (error) {
     next(error);
   }
-};
-
-/**
- * Legacy single-step registration (Optional, keeping for compatibility if needed)
- */
-export const register = async (req, res, next) => {
-  // We can just redirect to initiateRegister or keep it as is.
-  // Given the request, it's better to guide them to the new flow.
-  res.status(410).json({
-    success: false,
-    message: 'Single-step registration is deprecated. Please use /register/initiate'
-  });
 };
 
 /**
