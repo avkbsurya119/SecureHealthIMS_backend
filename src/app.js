@@ -57,6 +57,23 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }))
 
+// HTTPS Enforcement: Reject insecure HTTP requests in production
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    // Check if request is over HTTPS (behind proxy)
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'HTTPS required. Please use HTTPS to access this API.',
+          code: 'HTTPS_REQUIRED'
+        }
+      });
+    }
+    next();
+  });
+}
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
