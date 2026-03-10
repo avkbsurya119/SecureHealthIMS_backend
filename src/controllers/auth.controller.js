@@ -197,8 +197,11 @@ export const login = async (req, res, next) => {
       throw new ValidationError('Email and password are required');
     }
 
-    // Authenticate with Supabase
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // Authenticate with Supabase using anon key client (service role client is not meant for user auth flows)
+    const { createClient } = await import('@supabase/supabase-js');
+    const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+    const { data, error } = await anonSupabase.auth.signInWithPassword({
       email,
       password
     });
