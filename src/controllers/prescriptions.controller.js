@@ -2,6 +2,7 @@ import { supabase } from '../config/supabaseClient.js';
 import { ApiResponse } from '../utils/errors.js';
 import { NotFoundError, UnauthorizedError, ValidationError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
+import { AuditService } from '../services/audit.service.js';
 
 /**
  * GET My Prescriptions
@@ -101,6 +102,21 @@ export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
     users: usersMap[p.doctor_id] || { name: 'Unknown', specialization: '' }
   }));
 
+  // Audit Log: Record that a doctor or nurse viewed this patient's prescriptions
+  if (req.user && req.user.role !== 'patient') {
+    await AuditService.logRead(
+      req.user.id,
+      patientId,
+      'prescriptions_list',
+      patientId,
+      {
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { role: req.user.role, action: 'viewed_prescriptions_list' }
+      }
+    );
+  }
+
   return ApiResponse.success(res, prescriptions);
 });
 
@@ -133,7 +149,25 @@ export const getPrescriptionById = asyncHandler(async (req, res) => {
   }
 
   if (req.user.role === 'doctor' && prescription.doctor_id !== req.user.id) {
+    // We already checked this logic, but if they want to access it, they might need consent or be the creator
+    // Right now, only the original doctor or the patient can view a specific prescription ID.
+    // We'll leave the auth block intact.
     throw new UnauthorizedError('You are not authorized to view this prescription');
+  }
+
+  // Audit Log: Record that a doctor or nurse viewed this specific prescription
+  if (req.user && req.user.role !== 'patient') {
+    await AuditService.logRead(
+      req.user.id,
+      prescription.patient_id,
+      'prescription_detail',
+      prescription.id,
+      {
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        details: { role: req.user.role, action: 'viewed_prescription' }
+      }
+    );
   }
 
   return ApiResponse.success(res, prescription);

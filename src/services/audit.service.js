@@ -148,6 +148,7 @@ export class AuditService {
       .from('audit_logs')
       .select('*')
       .eq('patient_id', patientId)
+      .neq('user_id', patientId) // Exclude patient's own actions
       .order('created_at', { ascending: false });
 
     if (action) {
@@ -234,6 +235,7 @@ export class AuditService {
       .from('audit_logs')
       .select('user_id, action, resource, created_at')
       .eq('patient_id', patientId)
+      .neq('user_id', patientId) // Exclude patient's own actions
       .order('created_at', { ascending: false })
       .limit(50);
 

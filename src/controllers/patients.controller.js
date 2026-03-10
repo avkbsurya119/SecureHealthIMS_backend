@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabaseClient.js';
 import { ApiResponse, NotFoundError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
+import { AuditService } from '../services/audit.service.js';
 
 /**
  * Search Patients
@@ -58,6 +59,21 @@ export const getPatientById = asyncHandler(async (req, res) => {
 
     if (error || !patient) {
         throw new NotFoundError('Patient');
+    }
+
+    // Audit Log: Record that a doctor or nurse viewed this patient's profile
+    if (req.user && req.user.role !== 'patient') {
+        await AuditService.logRead(
+            req.user.id,        // The user performing the action (Doctor/Nurse)
+            patient.id,         // The patient being viewed
+            'patient_profile',  // The resource type
+            patient.id,         // The resource ID
+            {
+                ipAddress: req.ip,
+                userAgent: req.get('User-Agent'),
+                details: { role: req.user.role, action: 'viewed_profile' }
+            }
+        );
     }
 
     const mappedPatient = {
