@@ -50,16 +50,28 @@ export const getMyVisits = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (doctorIds.size > 0) {
-    const { data: doctors } = await supabase.from('users').select('id, name, specialization').in('id', Array.from(doctorIds));
+    const { data: doctors } = await supabase
+      .from('users')
+      .select('id, name, full_name, specialization')
+      .in('id', Array.from(doctorIds));
+    
     if (doctors) {
-      doctors.forEach(d => usersMap[d.id] = d);
+      doctors.forEach(d => usersMap[d.id] = {
+        ...d,
+        name: d.full_name || d.name || 'Doctor',
+        specialization: d.specialization || ''
+      });
     }
   }
 
-  const visits = visitsRaw.map(v => ({
-    ...v,
-    doctor: usersMap[v.doctor_id] || { name: 'Unknown', specialization: '' }
-  }));
+  const visits = visitsRaw.map(v => {
+    const docInfo = usersMap[v.doctor_id] || { name: 'Unknown', specialization: '' };
+    return {
+      ...v,
+      doctor: docInfo,
+      doctors: docInfo // Alias for PatientDashboard
+    };
+  });
 
   return ApiResponse.success(res, {
     visits: visits || [],
@@ -212,15 +224,22 @@ export const getDoctorVisits = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (patientIds.size > 0) {
-    const { data: patients } = await supabase.from('users').select('id, full_name, email').in('id', Array.from(patientIds));
+    const { data: patients } = await supabase
+      .from('users')
+      .select('id, name, full_name, email')
+      .in('id', Array.from(patientIds));
+    
     if (patients) {
-      patients.forEach(p => usersMap[p.id] = p);
+      patients.forEach(p => usersMap[p.id] = {
+        ...p,
+        name: p.full_name || p.name || 'Patient'
+      });
     }
   }
 
   const visits = visitsRaw.map(v => ({
     ...v,
-    users: usersMap[v.patient_id] || { full_name: 'Unknown', email: '' } // Mocking 'users' object
+    users: usersMap[v.patient_id] || { name: 'Unknown', full_name: 'Unknown', email: '' } // Mocking 'users' object
   }));
 
   return ApiResponse.success(res, visits);

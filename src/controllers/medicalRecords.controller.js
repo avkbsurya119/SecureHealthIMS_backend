@@ -68,7 +68,7 @@ export const getPatientMedicalRecords = asyncHandler(async (req, res) => {
 
   // Verify patient exists
   const { data: patient, error: patientError } = await supabase
-    .from('patients')
+    .from('patients') // Or users if role is patient
     .select('id, name')
     .eq('id', patientId)
     .single();
@@ -78,28 +78,32 @@ export const getPatientMedicalRecords = asyncHandler(async (req, res) => {
   }
 
   // Get medical records
-  const { data: records, error } = await supabase
+  const { data: recordsRaw, error } = await supabase
     .from('medical_records')
-    .select(`
-      id,
-      diagnosis,
-      prescription,
-      notes,
-      created_at,
-      updated_at,
-      doctor_id,
-      doctors (
-        id,
-        name,
-        specialization
-      )
-    `)
+    .select('*')
     .eq('patient_id', patientId)
     .order('created_at', { ascending: false });
 
   if (error) {
     throw error;
   }
+
+  // Manual Join: Fetch doctors
+  const doctorIds = [...new Set((recordsRaw || []).map(r => r.doctor_id))];
+  let doctorsMap = {};
+  if (doctorIds.length > 0) {
+    const { data: doctors } = await supabase.from('users').select('id, name, full_name, specialization').in('id', doctorIds);
+    doctors?.forEach(d => doctorsMap[d.id] = {
+      id: d.id,
+      name: d.full_name || d.name,
+      specialization: d.specialization
+    });
+  }
+
+  const records = (recordsRaw || []).map(r => ({
+    ...r,
+    doctors: doctorsMap[r.doctor_id] || { name: 'Unknown' }
+  }));
 
   // Audit Log: Record that a doctor or nurse viewed this patient's medical records list
   if (req.user && req.user.role !== 'patient') {
@@ -142,33 +146,37 @@ export const getPatientMedicalRecords = asyncHandler(async (req, res) => {
 export const getMedicalRecord = asyncHandler(async (req, res) => {
   const { recordId } = req.params;
 
-  const { data: record, error } = await supabase
+  const { data: recordRaw, error } = await supabase
     .from('medical_records')
-    .select(`
-      id,
-      patient_id,
-      diagnosis,
-      prescription,
-      notes,
-      created_at,
-      updated_at,
-      doctor_id,
-      doctors (
-        id,
-        name,
-        specialization
-      ),
-      patients (
-        id,
-        name
-      )
-    `)
+    .select('*')
     .eq('id', recordId)
     .single();
 
-  if (error || !record) {
+  if (error || !recordRaw) {
     throw new NotFoundError('Medical record');
   }
+
+  // Manual Join: Fetch doctor and patient
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, name, full_name, specialization')
+    .in('id', [recordRaw.doctor_id, recordRaw.patient_id]);
+
+  const uMap = {};
+  users?.forEach(u => uMap[u.id] = u);
+
+  const record = {
+    ...recordRaw,
+    doctors: {
+      id: recordRaw.doctor_id,
+      name: uMap[recordRaw.doctor_id]?.full_name || uMap[recordRaw.doctor_id]?.name || 'Doctor',
+      specialization: uMap[recordRaw.doctor_id]?.specialization
+    },
+    patients: {
+      id: recordRaw.patient_id,
+      name: uMap[recordRaw.patient_id]?.full_name || uMap[recordRaw.patient_id]?.name || 'Patient'
+    }
+  };
 
   // Audit Log: Record that a doctor or nurse viewed this specific medical record
   if (req.user && req.user.role !== 'patient') {
@@ -215,7 +223,7 @@ export const updateMedicalRecord = asyncHandler(async (req, res) => {
     .from('medical_records')
     .update(updates)
     .eq('id', recordId)
-    .select()
+    .select('*')
     .single();
 
   if (error) {
@@ -236,27 +244,32 @@ export const getMyMedicalRecords = asyncHandler(async (req, res) => {
   // patientId is set by requirePatientOrAdmin middleware
   const patientId = req.patientId;
 
-  const { data: records, error } = await supabase
+  const { data: recordsRaw, error } = await supabase
     .from('medical_records')
-    .select(`
-      id,
-      diagnosis,
-      prescription,
-      notes,
-      created_at,
-      updated_at,
-      doctors (
-        id,
-        name,
-        specialization
-      )
-    `)
+    .select('*')
     .eq('patient_id', patientId)
     .order('created_at', { ascending: false });
 
   if (error) {
     throw error;
   }
+
+  // Manual Join: Fetch doctors
+  const doctorIds = [...new Set((recordsRaw || []).map(r => r.doctor_id))];
+  let doctorsMap = {};
+  if (doctorIds.length > 0) {
+    const { data: doctors } = await supabase.from('users').select('id, name, full_name, specialization').in('id', doctorIds);
+    doctors?.forEach(d => doctorsMap[d.id] = {
+      id: d.id,
+      name: d.full_name || d.name,
+      specialization: d.specialization
+    });
+  }
+
+  const records = (recordsRaw || []).map(r => ({
+    ...r,
+    doctors: doctorsMap[r.doctor_id] || { name: 'Unknown' }
+  }));
 
   return ApiResponse.success(res, {
     records: records || [],
