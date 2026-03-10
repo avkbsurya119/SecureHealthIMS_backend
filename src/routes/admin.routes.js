@@ -8,7 +8,8 @@ import {
     getDoctorDetails,
     getDashboardStats,
     getAllAppointments,
-    getAllInvoices
+    getAllInvoices,
+    getSecurityAssumptions
 } from '../controllers/admin.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/rbac.middleware.js';
@@ -80,5 +81,12 @@ router.get('/appointments', getAllAppointments);
  * @access  Private (Admin only)
  */
 router.get('/invoices', getAllInvoices);
+
+/**
+ * @route   GET /api/admin/security-assumptions
+ * @desc    Get security assumptions document
+ * @access  Private (Admin only)
+ */
+router.get('/security-assumptions', getSecurityAssumptions);
 
 export default router;

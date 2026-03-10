@@ -1,6 +1,9 @@
 
 import { supabase } from '../config/supabaseClient.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 /**
  * Get dashboard stats
@@ -259,6 +262,35 @@ export const getAllInvoices = async (req, res, next) => {
     }
 };
 
+
+export const getSecurityAssumptions = async (req, res, next) => {
+    try {
+        // Get the directory of the current module
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+
+        // Path to SECURITY_ASSUMPTIONS.md (one level up from controllers)
+        const filePath = path.join(__dirname, '..', '..', 'SECURITY_ASSUMPTIONS.md');
+
+        // Check if file exists
+        if (!fs.existsSync(filePath)) {
+            throw new NotFoundError('Security assumptions document not found');
+        }
+
+        // Read the file
+        const content = fs.readFileSync(filePath, 'utf8');
+
+        res.json({
+            success: true,
+            data: {
+                content: content,
+                lastModified: new Date(fs.statSync(filePath).mtime).toISOString()
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
 export const banUser = async (req, res, next) => {
     try {
