@@ -74,6 +74,7 @@ export const requirePatientOrAdmin = asyncHandler(async (req, res, next) => {
   }
 
   req.patientId = patient.id;
+  req.patientUserId = req.user.id; // Correct user ID for audit filtering
   next();
 });
 

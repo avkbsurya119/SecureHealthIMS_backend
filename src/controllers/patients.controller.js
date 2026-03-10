@@ -24,7 +24,7 @@ export const searchPatients = asyncHandler(async (req, res) => {
     const searchPattern = `%${q}%`;
     const { data: patients, error } = await supabase
         .from('users')
-        .select('id, full_name, email, phone, date_of_birth, gender, blood_group')
+        .select('id, full_name, email, phone, date_of_birth, gender, blood_group, allergies, address, medical_history')
         .eq('role', 'patient')
         .or(`full_name.ilike.${searchPattern},email.ilike.${searchPattern},phone.ilike.${searchPattern}`)
         .limit(20);

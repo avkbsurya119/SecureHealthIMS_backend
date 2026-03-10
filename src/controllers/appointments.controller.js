@@ -32,7 +32,7 @@ export const createAppointment = asyncHandler(async (req, res) => {
   // Verify patient exists
   const { data: patient, error: patientError } = await supabase
     .from('users')
-    .select('id, name')
+    .select('id, full_name, name')
     .eq('id', patient_id)
     .single();
 
@@ -43,7 +43,7 @@ export const createAppointment = asyncHandler(async (req, res) => {
   // Verify doctor exists
   const { data: doctor, error: doctorError } = await supabase
     .from('users')
-    .select('id, name')
+    .select('id, full_name, name')
     .eq('id', doctor_id)
     .eq('role', 'doctor')
     .single();
@@ -53,7 +53,7 @@ export const createAppointment = asyncHandler(async (req, res) => {
   }
 
   // Create appointment
-  const { data: appointment, error } = await supabase
+  const { data: appointmentRaw, error } = await supabase
     .from('appointments')
     .insert({
       patient_id,
@@ -64,11 +64,7 @@ export const createAppointment = asyncHandler(async (req, res) => {
       created_by: req.user.id,
       updated_by: req.user.id
     })
-    .select(`
-      *,
-      users!appointments_patient_id_fkey (id, name),
-      users!appointments_doctor_id_fkey (id, name, specialization)
-    `)
+    .select('*')
     .single();
 
   if (error) {
@@ -80,6 +76,28 @@ export const createAppointment = asyncHandler(async (req, res) => {
     }
     throw error;
   }
+
+  // Manual Join: Fetch user details
+  const { data: participants } = await supabase
+    .from('users')
+    .select('id, name, full_name, specialization')
+    .in('id', [patient_id, doctor_id]);
+
+  const pMap = {};
+  participants?.forEach(u => pMap[u.id] = u);
+
+  const appointment = {
+    ...appointmentRaw,
+    users: {
+      id: patient_id,
+      name: pMap[patient_id]?.full_name || pMap[patient_id]?.name || 'Patient'
+    },
+    doctor_details: {
+      id: doctor_id,
+      name: pMap[doctor_id]?.full_name || pMap[doctor_id]?.name || 'Doctor',
+      specialization: pMap[doctor_id]?.specialization || ''
+    }
+  };
 
   return ApiResponse.created(res, appointment, 'Appointment created successfully');
 });
@@ -139,20 +157,38 @@ export const getMyAppointments = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (userIds.size > 0) {
-    const { data: users } = await supabase.from('users').select('id, name, specialization').in('id', Array.from(userIds));
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, name, full_name, specialization')
+      .in('id', Array.from(userIds));
+    
     if (users) {
-      users.forEach(u => usersMap[u.id] = u);
+      users.forEach(u => usersMap[u.id] = {
+        ...u,
+        display_name: u.full_name || u.name || 'Doctor', // Preferred display name
+        name: u.full_name || u.name || 'Doctor' // Backwards compatibility for existing code
+      });
     }
   }
 
   const finalAppointments = (appointmentsRaw || []).map(apt => {
-    const patient = usersMap[apt.patient_id] || { name: 'Unknown' };
-    const doctor = usersMap[apt.doctor_id] || { name: 'Unknown', specialization: '' };
+    const patientUser = usersMap[apt.patient_id];
+    const doctorUser = usersMap[apt.doctor_id];
+    
+    // Mapping for doctor info
+    const docInfo = { 
+      id: apt.doctor_id, 
+      name: doctorUser?.display_name || 'Doctor', 
+      specialization: doctorUser?.specialization || '' 
+    };
 
     return {
       ...apt,
-      users: patient,
-      doctor_details: doctor
+      appointment_date: apt.date, // Alias for frontend compatibility
+      users: patientUser ? { id: patientUser.id, name: patientUser.display_name } : { name: 'Patient' },
+      doctor: docInfo,
+      doctors: docInfo, // Plural alias for PatientDashboard
+      doctor_details: docInfo
     };
   });
 
@@ -173,19 +209,39 @@ export const getMyAppointments = asyncHandler(async (req, res) => {
 export const getAppointment = asyncHandler(async (req, res) => {
   const { appointmentId } = req.params;
 
-  const { data: appointment, error } = await supabase
+  const { data: appointmentRaw, error } = await supabase
     .from('appointments')
-    .select(`
-      *,
-      users!appointments_patient_id_fkey (id, name, dob, phone),
-      users!appointments_doctor_id_fkey (id, name, specialization)
-    `)
+    .select('*')
     .eq('id', appointmentId)
     .single();
 
-  if (error || !appointment) {
+  if (error || !appointmentRaw) {
     throw new NotFoundError('Appointment');
   }
+
+  // Manual Join
+  const { data: participants } = await supabase
+    .from('users')
+    .select('id, name, full_name, specialization, date_of_birth, phone')
+    .in('id', [appointmentRaw.patient_id, appointmentRaw.doctor_id]);
+
+  const pMap = {};
+  participants?.forEach(u => pMap[u.id] = u);
+
+  const appointment = {
+    ...appointmentRaw,
+    users: {
+      id: appointmentRaw.patient_id,
+      name: pMap[appointmentRaw.patient_id]?.full_name || pMap[appointmentRaw.patient_id]?.name || 'Patient',
+      dob: pMap[appointmentRaw.patient_id]?.date_of_birth,
+      phone: pMap[appointmentRaw.patient_id]?.phone
+    },
+    doctor_details: {
+      id: appointmentRaw.doctor_id,
+      name: pMap[appointmentRaw.doctor_id]?.full_name || pMap[appointmentRaw.doctor_id]?.name || 'Doctor',
+      specialization: pMap[appointmentRaw.doctor_id]?.specialization || ''
+    }
+  };
 
   return ApiResponse.success(res, appointment);
 });
@@ -233,20 +289,38 @@ export const updateAppointmentStatus = asyncHandler(async (req, res) => {
   }
 
   // Update appointment
-  const { data: updatedAppointment, error } = await supabase
+  const { data: updatedRaw, error } = await supabase
     .from('appointments')
     .update(updates)
     .eq('id', appointmentId)
-    .select(`
-      *,
-      users!appointments_patient_id_fkey (id, name),
-      users!appointments_doctor_id_fkey (id, name, specialization)
-    `)
+    .select('*')
     .single();
 
   if (error) {
     throw error;
   }
+
+  // Manual Join
+  const { data: participants } = await supabase
+    .from('users')
+    .select('id, name, full_name, specialization')
+    .in('id', [updatedRaw.patient_id, updatedRaw.doctor_id]);
+
+  const pMap = {};
+  participants?.forEach(u => pMap[u.id] = u);
+
+  const updatedAppointment = {
+    ...updatedRaw,
+    users: {
+      id: updatedRaw.patient_id,
+      name: pMap[updatedRaw.patient_id]?.full_name || pMap[updatedRaw.patient_id]?.name || 'Patient'
+    },
+    doctor_details: {
+      id: updatedRaw.doctor_id,
+      name: pMap[updatedRaw.doctor_id]?.full_name || pMap[updatedRaw.doctor_id]?.name || 'Doctor',
+      specialization: pMap[updatedRaw.doctor_id]?.specialization || ''
+    }
+  };
 
   return ApiResponse.success(
     res,
@@ -270,7 +344,7 @@ export const getPatientAppointments = asyncHandler(async (req, res) => {
   // Verify patient exists
   const { data: patient, error: patientError } = await supabase
     .from('users')
-    .select('id, name')
+    .select('id, full_name')
     .eq('id', patientId)
     .single();
 
@@ -278,31 +352,51 @@ export const getPatientAppointments = asyncHandler(async (req, res) => {
     throw new NotFoundError('Patient');
   }
 
-  let query = supabase
+  let aQuery = supabase
     .from('appointments')
-    .select(`
-      *,
-      users!appointments_doctor_id_fkey (id, name, specialization)
-    `)
+    .select('*')
     .eq('patient_id', patientId)
     .order('date', { ascending: false });
 
   if (status) {
-    query = query.eq('status', status);
+    aQuery = aQuery.eq('status', status);
   }
 
-  const { data: appointments, error } = await query;
+  const { data: appointmentsRaw, error } = await aQuery;
 
   if (error) {
     throw error;
   }
 
-  return ApiResponse.success(res, {
-    patient: {
-      id: patient.id,
-      name: patient.name
-    },
-    appointments: appointments || [],
-    total: appointments?.length || 0
+  // Manual Join for Doctors
+  const doctorIds = [...new Set((appointmentsRaw || []).map(a => a.doctor_id))];
+  let doctorsMap = {};
+  
+  if (doctorIds.length > 0) {
+    const { data: doctors } = await supabase
+      .from('users')
+      .select('id, name, full_name, specialization')
+      .in('id', doctorIds);
+    
+    doctors?.forEach(d => doctorsMap[d.id] = d);
+  }
+
+  const appointments = (appointmentsRaw || []).map(apt => {
+    const d = doctorsMap[apt.doctor_id];
+    const docInfo = {
+      id: apt.doctor_id,
+      name: d?.full_name || d?.name || 'Doctor',
+      specialization: d?.specialization || ''
+    };
+    
+    return {
+      ...apt,
+      appointment_date: apt.date, // Alias for frontend
+      doctor: docInfo,
+      doctors: docInfo, // Alias for PatientDashboard
+      doctor_details: docInfo
+    };
   });
+
+  return ApiResponse.success(res, appointments);
 });

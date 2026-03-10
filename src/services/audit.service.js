@@ -171,7 +171,35 @@ export class AuditService {
       throw error;
     }
 
-    return data || [];
+    // Optimization: avoid N+1 queries by grabbing all unique user IDs
+    const userIds = [...new Set((data || []).map(log => log.user_id))];
+    let usersMap = {};
+    if (userIds.length > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, full_name, role')
+        .in('id', userIds);
+      if (usersData) {
+        usersData.forEach(u => {
+          usersMap[u.id] = u;
+        });
+      }
+    }
+
+    // Flatten the user data and FILTER out patient self-actions
+    const formattedData = data?.map(log => {
+      const user = usersMap[log.user_id] || {};
+      return {
+        ...log,
+        user_name: user.full_name || 'Staff member',
+        details: {
+          ...log.details,
+          role: user.role || log.details?.role || 'Staff'
+        }
+      };
+    }).filter(log => log.details.role !== 'patient');
+
+    return formattedData || [];
   }
 
   /**
@@ -243,6 +271,32 @@ export class AuditService {
       throw error;
     }
 
-    return data || [];
+    // Optimization: avoid N+1 queries by grabbing all unique user IDs
+    const userIds = [...new Set((data || []).map(log => log.user_id))];
+    let usersMap = {};
+    if (userIds.length > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, full_name, role')
+        .in('id', userIds);
+      if (usersData) {
+        usersData.forEach(u => {
+          usersMap[u.id] = u;
+        });
+      }
+    }
+
+    const formattedData = data?.map(log => {
+      const user = usersMap[log.user_id] || {};
+      return {
+        ...log,
+        user_name: user.full_name || 'Staff member',
+        details: {
+          role: user.role || 'Staff'
+        }
+      };
+    }).filter(log => log.details.role !== 'patient');
+
+    return formattedData || [];
   }
 }
