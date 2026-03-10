@@ -1,5 +1,5 @@
 import express from 'express';
-import { getMyPrescriptions, getPrescriptionById, createPrescription, updatePrescription, getDoctorPrescriptions } from '../controllers/prescriptions.controller.js';
+import { getMyPrescriptions, getPrescriptionsByPatient, getPrescriptionById, createPrescription, updatePrescription, getDoctorPrescriptions } from '../controllers/prescriptions.controller.js';
 import { authenticate, requireRole } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -17,6 +17,9 @@ router.get('/doctor/me', requireRole('doctor'), getDoctorPrescriptions);
 
 // Shared Routes
 // Updated controller logic to allow patient (own) and doctor (own)
-router.get('/:prescriptionId', requireRole(['patient', 'doctor']), getPrescriptionById);
+router.get('/:prescriptionId', requireRole(['patient', 'doctor', 'nurse']), getPrescriptionById);
+
+// Staff Routes (Doctor, Nurse)
+router.get('/patient/:patientId', requireRole(['doctor', 'nurse']), getPrescriptionsByPatient);
 
 export default router;

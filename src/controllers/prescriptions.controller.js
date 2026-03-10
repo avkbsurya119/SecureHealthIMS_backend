@@ -57,6 +57,54 @@ export const getMyPrescriptions = asyncHandler(async (req, res) => {
 });
 
 /**
+ * GET Prescriptions for a specific patient
+ * GET /api/prescriptions/patient/:patientId
+ * 
+ * Security:
+ * - Doctors and Nurses can view
+ */
+export const getPrescriptionsByPatient = asyncHandler(async (req, res) => {
+  const { patientId } = req.params;
+
+  const { data: prescriptionsRaw, error } = await supabase
+    .from('prescriptions')
+    .select(`
+      *,
+      visits (visit_date)
+    `)
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  // Manual Join for Doctor Details
+  const doctorIds = new Set();
+  prescriptionsRaw.forEach(p => {
+    if (p.doctor_id) doctorIds.add(p.doctor_id);
+  });
+
+  let usersMap = {};
+  if (doctorIds.size > 0) {
+    const { data: doctors } = await supabase.from('users').select('id, full_name, name, specialization').in('id', Array.from(doctorIds));
+    if (doctors) {
+      doctors.forEach(d => usersMap[d.id] = {
+        name: d.full_name || d.name || 'Unknown',
+        specialization: d.specialization || ''
+      });
+    }
+  }
+
+  const prescriptions = prescriptionsRaw.map(p => ({
+    ...p,
+    users: usersMap[p.doctor_id] || { name: 'Unknown', specialization: '' }
+  }));
+
+  return ApiResponse.success(res, prescriptions);
+});
+
+/**
  * GET Single Prescription
  * GET /api/prescriptions/:prescriptionId
  * 
