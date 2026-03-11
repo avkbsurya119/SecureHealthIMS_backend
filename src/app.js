@@ -20,6 +20,7 @@ import visitsRoutes from './routes/visits.routes.js'
 import prescriptionsRoutes from './routes/prescriptions.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import doctorsRoutes from './routes/doctors.routes.js'
+import chatbotRoutes from './routes/chatbot.routes.js'
 
 // Import error handlers
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.middleware.js'
@@ -42,7 +43,7 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 app.use(cors({
-  origin: function(origin, callback) {
+  origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
@@ -95,10 +96,11 @@ app.use('/api/medical-records', apiLimiter, medicalRecordsRoutes)
 app.use('/api/appointments', apiLimiter, appointmentsRoutes)
 app.use('/api/consent', consentLimiter, consentRoutes)
 app.use('/api/audit', apiLimiter, auditRoutes)
-app.use('/api/visits', authLimiter, visitsRoutes) // EPIC 3: Clinical Records
-app.use('/api/prescriptions', authLimiter, prescriptionsRoutes) // EPIC 3: Treatment Workflow
-app.use('/api/admin', authLimiter, adminRoutes) // Admin routes
+app.use('/api/visits', apiLimiter, visitsRoutes) // EPIC 3: Clinical Records
+app.use('/api/prescriptions', apiLimiter, prescriptionsRoutes) // EPIC 3: Treatment Workflow
+app.use('/api/admin', apiLimiter, adminRoutes) // Admin routes
 app.use('/api/doctors', apiLimiter, doctorsRoutes) // Doctors search
+app.use('/api/chatbot', apiLimiter, chatbotRoutes) // AI Chatbot
 
 
 // ============================================================================

@@ -1,0 +1,19 @@
+{
+  "columns": [
+    "id",
+    "patient_id",
+    "doctor_id",
+    "date",
+    "time",
+    "patient_name",
+    "doctor_name",
+    "reason",
+    "status",
+    "created_at"
+  ],
+  "status": {
+    "default": "Pending",
+    "format": "text",
+    "type": "string"
+  }
+}

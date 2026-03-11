@@ -76,9 +76,10 @@ export const schemas = {
       status: {
         required: true,
         type: 'enum',
-        values: ['scheduled', 'completed', 'cancelled']
+        values: ['Pending', 'Confirmed', 'Completed', 'Cancelled', 'No-Show']
       },
-      cancellation_reason: { required: false, type: 'string', maxLength: 500 }
+      cancellation_reason: { required: false, type: 'string', maxLength: 500 },
+      decline_reason: { required: false, type: 'string', maxLength: 500 }
     }
   },
 

@@ -12,10 +12,10 @@ import { isValidUUID } from '../utils/validation.utils.js';
  */
 function getClientIp(req) {
   return req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-         req.headers['x-real-ip'] ||
-         req.connection?.remoteAddress ||
-         req.socket?.remoteAddress ||
-         null;
+    req.headers['x-real-ip'] ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    null;
 }
 
 /**
@@ -35,7 +35,7 @@ export const auditLog = (resource) => {
     let responseSent = false;
 
     // Override res.json to capture successful responses
-    res.json = function(data) {
+    res.json = function (data) {
       if (!responseSent && res.statusCode >= 200 && res.statusCode < 400) {
         responseSent = true;
         logAudit(req, res, resource, data);
@@ -44,7 +44,7 @@ export const auditLog = (resource) => {
     };
 
     // Override res.send as fallback
-    res.send = function(data) {
+    res.send = function (data) {
       if (!responseSent && res.statusCode >= 200 && res.statusCode < 400) {
         responseSent = true;
         logAudit(req, res, resource, data);
@@ -73,21 +73,22 @@ async function logAudit(req, res, resource, responseData) {
     const action = actionMap[req.method] || 'READ';
 
     // Extract and validate patient ID from various sources
-    const rawPatientId = req.params.patientId ||
-                        req.query.patientId ||
-                        req.patientId ||
-                        req.body?.patient_id ||
-                        req.record?.patient_id ||
-                        req.appointment?.patient_id ||
-                        null;
+    const rawPatientId = req.patientId ||
+      req.params.patientId ||
+      req.params.id ||
+      req.query.patientId ||
+      req.body?.patient_id ||
+      req.record?.patient_id ||
+      req.appointment?.patient_id ||
+      null;
     const patientId = rawPatientId && isValidUUID(rawPatientId) ? rawPatientId : null;
 
     // Extract and validate resource ID from response or params
     const rawResourceId = req.params.id ||
-                         req.params.recordId ||
-                         req.params.appointmentId ||
-                         responseData?.data?.id ||
-                         null;
+      req.params.recordId ||
+      req.params.appointmentId ||
+      responseData?.data?.id ||
+      null;
     const resourceId = rawResourceId && isValidUUID(rawResourceId) ? rawResourceId : null;
 
     // Build details object

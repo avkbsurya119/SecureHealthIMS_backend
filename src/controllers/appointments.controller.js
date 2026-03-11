@@ -12,10 +12,16 @@ import { asyncHandler } from '../middleware/errorHandler.middleware.js';
  * Valid status transitions
  * Security: Prevents invalid state changes
  */
+/**
+ * Valid status transitions
+ * Security: Prevents invalid state changes
+ */
 const VALID_TRANSITIONS = {
-  'scheduled': ['completed', 'cancelled'],
-  'completed': [], // Cannot change completed status
-  'cancelled': [] // Cannot change cancelled status
+  'Pending': ['Confirmed', 'Cancelled'],
+  'Confirmed': ['Completed', 'Cancelled', 'No-Show'],
+  'Completed': [], // Cannot change completed status
+  'Cancelled': [], // Cannot change cancelled status
+  'No-Show': [] // Cannot change no-show status
 };
 
 /**
@@ -27,12 +33,23 @@ const VALID_TRANSITIONS = {
  * - Automatically sets created_by
  */
 export const createAppointment = asyncHandler(async (req, res) => {
-  const { patient_id, doctor_id, date, time } = req.body;
+  const { doctor_id, date, time } = req.body;
+  let { patient_id } = req.body;
+
+  // Patient can only book for themselves
+  if (req.user.role === 'patient') {
+    patient_id = req.user.id;
+  }
+
+  // Ensure patient_id is provided (either from body or token)
+  if (!patient_id) {
+    throw new ValidationError('patient_id is required');
+  }
 
   // Verify patient exists
   const { data: patient, error: patientError } = await supabase
     .from('users')
-    .select('id, full_name, name')
+    .select('id, full_name')
     .eq('id', patient_id)
     .single();
 
@@ -43,7 +60,7 @@ export const createAppointment = asyncHandler(async (req, res) => {
   // Verify doctor exists
   const { data: doctor, error: doctorError } = await supabase
     .from('users')
-    .select('id, full_name, name')
+    .select('id, full_name')
     .eq('id', doctor_id)
     .eq('role', 'doctor')
     .single();
@@ -53,16 +70,16 @@ export const createAppointment = asyncHandler(async (req, res) => {
   }
 
   // Create appointment
-  const { data: appointmentRaw, error } = await supabase
+  const { data: appointment, error } = await supabase
     .from('appointments')
     .insert({
       patient_id,
       doctor_id,
       date,
       time,
-      status: 'scheduled',
-      created_by: req.user.id,
-      updated_by: req.user.id
+      status: 'Pending',
+      patient_name: patient.full_name,
+      doctor_name: doctor.full_name
     })
     .select('*')
     .single();
@@ -77,29 +94,14 @@ export const createAppointment = asyncHandler(async (req, res) => {
     throw error;
   }
 
-  // Manual Join: Fetch user details
-  const { data: participants } = await supabase
-    .from('users')
-    .select('id, name, full_name, specialization')
-    .in('id', [patient_id, doctor_id]);
-
-  const pMap = {};
-  participants?.forEach(u => pMap[u.id] = u);
-
-  const appointment = {
-    ...appointmentRaw,
-    users: {
-      id: patient_id,
-      name: pMap[patient_id]?.full_name || pMap[patient_id]?.name || 'Patient'
-    },
-    doctor_details: {
-      id: doctor_id,
-      name: pMap[doctor_id]?.full_name || pMap[doctor_id]?.name || 'Doctor',
-      specialization: pMap[doctor_id]?.specialization || ''
-    }
+  // Construct response matching the frontend expectation
+  const enrichedAppointment = {
+    ...appointment,
+    users: { id: patient.id, full_name: patient.full_name, name: patient.full_name },
+    doctor_details: { id: doctor.id, full_name: doctor.full_name, name: doctor.full_name }
   };
 
-  return ApiResponse.created(res, appointment, 'Appointment created successfully');
+  return ApiResponse.created(res, enrichedAppointment, 'Appointment created successfully');
 });
 
 /**
@@ -157,38 +159,20 @@ export const getMyAppointments = asyncHandler(async (req, res) => {
 
   let usersMap = {};
   if (userIds.size > 0) {
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, name, full_name, specialization')
-      .in('id', Array.from(userIds));
-    
+    const { data: users } = await supabase.from('users').select('id, full_name, specialization').in('id', Array.from(userIds));
     if (users) {
-      users.forEach(u => usersMap[u.id] = {
-        ...u,
-        display_name: u.full_name || u.name || 'Doctor', // Preferred display name
-        name: u.full_name || u.name || 'Doctor' // Backwards compatibility for existing code
-      });
+      users.forEach(u => usersMap[u.id] = u);
     }
   }
 
   const finalAppointments = (appointmentsRaw || []).map(apt => {
-    const patientUser = usersMap[apt.patient_id];
-    const doctorUser = usersMap[apt.doctor_id];
-    
-    // Mapping for doctor info
-    const docInfo = { 
-      id: apt.doctor_id, 
-      name: doctorUser?.display_name || 'Doctor', 
-      specialization: doctorUser?.specialization || '' 
-    };
+    const patientUser = usersMap[apt.patient_id] || { full_name: 'Unknown' };
+    const doctorUser = usersMap[apt.doctor_id] || { full_name: 'Unknown', specialization: '' };
 
     return {
       ...apt,
-      appointment_date: apt.date, // Alias for frontend compatibility
-      users: patientUser ? { id: patientUser.id, name: patientUser.display_name } : { name: 'Patient' },
-      doctor: docInfo,
-      doctors: docInfo, // Plural alias for PatientDashboard
-      doctor_details: docInfo
+      users: { ...patientUser, name: patientUser.full_name },
+      doctor_details: { ...doctorUser, name: doctorUser.full_name }
     };
   });
 
@@ -209,41 +193,37 @@ export const getMyAppointments = asyncHandler(async (req, res) => {
 export const getAppointment = asyncHandler(async (req, res) => {
   const { appointmentId } = req.params;
 
-  const { data: appointmentRaw, error } = await supabase
+  const { data: appointment, error } = await supabase
     .from('appointments')
     .select('*')
     .eq('id', appointmentId)
     .single();
 
-  if (error || !appointmentRaw) {
+  if (error || !appointment) {
     throw new NotFoundError('Appointment');
   }
 
-  // Manual Join
-  const { data: participants } = await supabase
+  // Manually fetch user details to avoid join issues after dropping constraints
+  const { data: users } = await supabase
     .from('users')
-    .select('id, name, full_name, specialization, date_of_birth, phone')
-    .in('id', [appointmentRaw.patient_id, appointmentRaw.doctor_id]);
+    .select('id, full_name, specialization, dob, phone')
+    .in('id', [appointment.patient_id, appointment.doctor_id]);
 
-  const pMap = {};
-  participants?.forEach(u => pMap[u.id] = u);
+  const usersMap = {};
+  if (users) {
+    users.forEach(u => usersMap[u.id] = u);
+  }
 
-  const appointment = {
-    ...appointmentRaw,
-    users: {
-      id: appointmentRaw.patient_id,
-      name: pMap[appointmentRaw.patient_id]?.full_name || pMap[appointmentRaw.patient_id]?.name || 'Patient',
-      dob: pMap[appointmentRaw.patient_id]?.date_of_birth,
-      phone: pMap[appointmentRaw.patient_id]?.phone
-    },
-    doctor_details: {
-      id: appointmentRaw.doctor_id,
-      name: pMap[appointmentRaw.doctor_id]?.full_name || pMap[appointmentRaw.doctor_id]?.name || 'Doctor',
-      specialization: pMap[appointmentRaw.doctor_id]?.specialization || ''
-    }
+  const patient = usersMap[appointment.patient_id] || { full_name: 'Unknown' };
+  const doctor = usersMap[appointment.doctor_id] || { full_name: 'Unknown', specialization: '' };
+
+  const enrichedAppointment = {
+    ...appointment,
+    users: { ...patient, name: patient.full_name },
+    doctor_details: { ...doctor, name: doctor.full_name }
   };
 
-  return ApiResponse.success(res, appointment);
+  return ApiResponse.success(res, enrichedAppointment);
 });
 
 /**
@@ -256,11 +236,27 @@ export const getAppointment = asyncHandler(async (req, res) => {
  */
 export const updateAppointmentStatus = asyncHandler(async (req, res) => {
   const { appointmentId } = req.params;
-  const { status, cancellation_reason } = req.body;
+  const { status, cancellation_reason, decline_reason } = req.body;
 
   // Get current appointment
   const appointment = req.appointment; // Set by requireAppointmentAccess middleware
   const currentStatus = appointment.status;
+
+  // Role-based transition restrictions
+  if (req.user.role === 'patient') {
+    // Patients can only cancel their own pending appointments
+    if (status !== 'Cancelled') {
+      throw new ValidationError('Patients can only cancel appointments');
+    }
+  }
+
+  if (req.user.role === 'doctor') {
+    // Doctors can accept (Confirmed), decline (Cancelled), mark visited (Completed), or no-show
+    const doctorAllowed = ['Confirmed', 'Cancelled', 'Completed', 'No-Show'];
+    if (!doctorAllowed.includes(status)) {
+      throw new ValidationError('Invalid status transition for doctor role');
+    }
+  }
 
   // Validate status transition
   if (!VALID_TRANSITIONS[currentStatus]?.includes(status)) {
@@ -271,25 +267,18 @@ export const updateAppointmentStatus = asyncHandler(async (req, res) => {
   }
 
   // Build update object
-  const updates = {
-    status,
-    updated_by: req.user.id,
-    updated_at: new Date().toISOString()
-  };
+  const updates = { status };
 
-  // Handle cancellation
-  if (status === 'cancelled') {
-    if (!cancellation_reason) {
-      throw new ValidationError('Cancellation reason is required when cancelling an appointment');
+  // Handle cancellation/decline reason (store in notes column if available)
+  if (status === 'Cancelled') {
+    const reason = cancellation_reason || decline_reason;
+    if (!reason) {
+      throw new ValidationError('A reason is required when cancelling an appointment');
     }
-
-    updates.cancelled_at = new Date().toISOString();
-    updates.cancelled_by = req.user.id;
-    updates.cancellation_reason = cancellation_reason;
   }
 
   // Update appointment
-  const { data: updatedRaw, error } = await supabase
+  const { data: updatedAppointment, error } = await supabase
     .from('appointments')
     .update(updates)
     .eq('id', appointmentId)
@@ -300,31 +289,29 @@ export const updateAppointmentStatus = asyncHandler(async (req, res) => {
     throw error;
   }
 
-  // Manual Join
-  const { data: participants } = await supabase
+  // Manually fetch user details to avoid join issues
+  const { data: users } = await supabase
     .from('users')
-    .select('id, name, full_name, specialization')
-    .in('id', [updatedRaw.patient_id, updatedRaw.doctor_id]);
+    .select('id, full_name, specialization')
+    .in('id', [updatedAppointment.patient_id, updatedAppointment.doctor_id]);
 
-  const pMap = {};
-  participants?.forEach(u => pMap[u.id] = u);
+  const usersMap = {};
+  if (users) {
+    users.forEach(u => usersMap[u.id] = u);
+  }
 
-  const updatedAppointment = {
-    ...updatedRaw,
-    users: {
-      id: updatedRaw.patient_id,
-      name: pMap[updatedRaw.patient_id]?.full_name || pMap[updatedRaw.patient_id]?.name || 'Patient'
-    },
-    doctor_details: {
-      id: updatedRaw.doctor_id,
-      name: pMap[updatedRaw.doctor_id]?.full_name || pMap[updatedRaw.doctor_id]?.name || 'Doctor',
-      specialization: pMap[updatedRaw.doctor_id]?.specialization || ''
-    }
+  const patient = usersMap[updatedAppointment.patient_id] || { full_name: updatedAppointment.patient_name || 'Unknown' };
+  const doctor = usersMap[updatedAppointment.doctor_id] || { full_name: updatedAppointment.doctor_name || 'Unknown', specialization: '' };
+
+  const enrichedAppointment = {
+    ...updatedAppointment,
+    users: { ...patient, name: patient.full_name },
+    doctor_details: { ...doctor, name: doctor.full_name }
   };
 
   return ApiResponse.success(
     res,
-    updatedAppointment,
+    enrichedAppointment,
     `Appointment ${status} successfully`
   );
 });
@@ -352,51 +339,51 @@ export const getPatientAppointments = asyncHandler(async (req, res) => {
     throw new NotFoundError('Patient');
   }
 
-  let aQuery = supabase
+  let query = supabase
     .from('appointments')
     .select('*')
     .eq('patient_id', patientId)
     .order('date', { ascending: false });
 
   if (status) {
-    aQuery = aQuery.eq('status', status);
+    query = query.eq('status', status);
   }
 
-  const { data: appointmentsRaw, error } = await aQuery;
+  const { data: appointments, error } = await query;
 
   if (error) {
     throw error;
   }
 
-  // Manual Join for Doctors
-  const doctorIds = [...new Set((appointmentsRaw || []).map(a => a.doctor_id))];
+  // Manually fetch doctor details
+  const doctorIds = [...new Set((appointments || []).map(a => a.doctor_id))];
   let doctorsMap = {};
-  
+
   if (doctorIds.length > 0) {
     const { data: doctors } = await supabase
       .from('users')
-      .select('id, name, full_name, specialization')
+      .select('id, full_name, specialization')
       .in('id', doctorIds);
-    
-    doctors?.forEach(d => doctorsMap[d.id] = d);
+
+    if (doctors) {
+      doctors.forEach(d => doctorsMap[d.id] = d);
+    }
   }
 
-  const appointments = (appointmentsRaw || []).map(apt => {
-    const d = doctorsMap[apt.doctor_id];
-    const docInfo = {
-      id: apt.doctor_id,
-      name: d?.full_name || d?.name || 'Doctor',
-      specialization: d?.specialization || ''
-    };
-    
+  const enrichedAppointments = (appointments || []).map(apt => {
+    const doctor = doctorsMap[apt.doctor_id] || { full_name: apt.doctor_name || 'Unknown', specialization: '' };
     return {
       ...apt,
-      appointment_date: apt.date, // Alias for frontend
-      doctor: docInfo,
-      doctors: docInfo, // Alias for PatientDashboard
-      doctor_details: docInfo
+      doctor_details: { ...doctor, name: doctor.full_name }
     };
   });
 
-  return ApiResponse.success(res, appointments);
+  return ApiResponse.success(res, {
+    patient: {
+      id: patient.id,
+      name: patient.full_name
+    },
+    appointments: enrichedAppointments,
+    total: enrichedAppointments.length
+  });
 });

@@ -23,14 +23,15 @@ const router = express.Router();
  * Create a new appointment
  * 
  * Security:
- * - Requires doctor or admin role (nurses are read-only)
+ * - Requires doctor, admin, or patient role
+ * - Patients can only book for themselves (enforced in controller)
  * - Validates input
  * - Logs creation
  */
 router.post(
   '/',
   authenticate,
-  requireAnyRole(['admin', 'doctor']),
+  requireAnyRole(['admin', 'doctor', 'patient']),
   validate(schemas.appointment.create),
   auditLog('appointments'),
   createAppointment

@@ -36,10 +36,8 @@ export const getDoctors = asyncHandler(async (req, res) => {
     const { specialization } = req.query;
 
     let query = supabase
-        .from('users')
-        .select('id, full_name, email, phone, specialization, department, hospital_affiliation, experience_years')
-        .eq('role', 'doctor')
-        .eq('approval_status', 'approved');
+        .from('doctors')
+        .select('id, user_id, name, email, phone, specialization, department_id, verified');
 
     if (specialization) {
         query = query.eq('specialization', specialization);
@@ -49,10 +47,10 @@ export const getDoctors = asyncHandler(async (req, res) => {
 
     if (error) throw error;
 
-    // Map to frontend friendly format if needed, mainly name
+    // Use the native name column from doctors table now
     const formattedDoctors = doctors.map(doc => ({
         ...doc,
-        name: doc.full_name // Frontend often expects 'name'
+        name: doc.name || 'Unknown Doctor'
     }));
 
     return ApiResponse.success(res, formattedDoctors);

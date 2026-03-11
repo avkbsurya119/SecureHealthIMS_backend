@@ -73,8 +73,7 @@ export const requirePatientOrAdmin = asyncHandler(async (req, res, next) => {
     throw new UnauthorizedError('No patient record linked to this account');
   }
 
-  req.patientId = patient.id;
-  req.patientUserId = req.user.id; // Correct user ID for audit filtering
+  req.patientId = patient.id; // patients table PK — used as FK in patient_consents, etc.
   next();
 });
 
@@ -205,19 +204,14 @@ export const requireAppointmentAccess = asyncHandler(async (req, res, next) => {
   }
 
   // Doctor must be assigned to the appointment
+  // appointments.doctor_id stores users.id directly
   if (req.user.role === 'doctor') {
-    const { data: doctor } = await supabase
-      .from('doctors')
-      .select('id')
-      .eq('user_id', req.user.id)
-      .single();
-
-    if (!doctor || doctor.id !== appointment.doctor_id) {
+    if (req.user.id !== appointment.doctor_id) {
       throw new OwnershipError('You can only access appointments assigned to you');
     }
 
     req.appointment = appointment;
-    req.doctorId = doctor.id;
+    req.doctorId = req.user.id;
     return next();
   }
 

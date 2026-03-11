@@ -1,7 +1,8 @@
 import { supabase } from '../config/supabaseClient.js';
-import { ApiResponse, NotFoundError } from '../utils/errors.js';
+import { ApiResponse, NotFoundError, ConsentRequiredError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.middleware.js';
 import { AuditService } from '../services/audit.service.js';
+import { ConsentService } from '../services/consent.service.js';
 
 /**
  * Search Patients
@@ -24,7 +25,7 @@ export const searchPatients = asyncHandler(async (req, res) => {
     const searchPattern = `%${q}%`;
     const { data: patients, error } = await supabase
         .from('users')
-        .select('id, full_name, email, phone, date_of_birth, gender, blood_group, allergies, address, medical_history')
+        .select('id, full_name, email, phone, date_of_birth, gender, blood_group')
         .eq('role', 'patient')
         .or(`full_name.ilike.${searchPattern},email.ilike.${searchPattern},phone.ilike.${searchPattern}`)
         .limit(20);
@@ -34,10 +35,40 @@ export const searchPatients = asyncHandler(async (req, res) => {
         throw error;
     }
 
-    // Map for frontend consistency if needed
-    const mappedPatients = patients.map(p => ({
+    // CONSENT ENFORCEMENT: Filter out patients who haven't granted medical_records consent.
+    // Doctors can only see patients who have explicitly allowed access to their data.
+    let consentedPatients = patients;
+    if (patients.length > 0) {
+        const patientIds = patients.map(p => p.id);
+        const { data: grantedConsents } = await supabase
+            .from('patient_consents')
+            .select('patient_id')
+            .in('patient_id', patientIds)
+            .eq('consent_type', 'medical_records')
+            .eq('status', 'granted');
+
+        const consentedIds = new Set((grantedConsents || []).map(c => c.patient_id));
+        consentedPatients = patients.filter(p => consentedIds.has(p.id));
+    }
+
+    // Audit Log: Record search action
+    if (req.user && req.user.role !== 'patient') {
+        await AuditService.logRead(
+            req.user.id,
+            null,
+            'patient_search',
+            null,
+            {
+                ipAddress: req.ip,
+                userAgent: req.get('User-Agent'),
+                details: { role: req.user.role, query: q, results_count: consentedPatients.length }
+            }
+        );
+    }
+
+    const mappedPatients = consentedPatients.map(p => ({
         ...p,
-        name: p.full_name // Frontend expects 'name'
+        name: p.full_name
     }));
 
     return ApiResponse.success(res, mappedPatients);
@@ -59,6 +90,16 @@ export const getPatientById = asyncHandler(async (req, res) => {
 
     if (error || !patient) {
         throw new NotFoundError('Patient');
+    }
+
+    // CONSENT ENFORCEMENT: Doctors/nurses must have explicit consent to view a patient's profile.
+    if (req.user.role === 'doctor' || req.user.role === 'nurse') {
+        const hasConsent = await ConsentService.hasConsent(id, 'medical_records');
+        if (!hasConsent) {
+            throw new ConsentRequiredError(
+                'Patient has not granted consent to view their profile. The patient must enable data sharing in their privacy settings.'
+            );
+        }
     }
 
     // Audit Log: Record that a doctor or nurse viewed this patient's profile
