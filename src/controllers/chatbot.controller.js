@@ -549,10 +549,12 @@ async function chatWithGroq(message, conversationHistory, user) {
           const dbResult = await executeDbQuery(args, user.id, user.role);
           // Remap doctors table: expose doctor_id = user_id, hide PK id
           if (args.table === 'doctors' && dbResult.data) {
-            dbResult.data = dbResult.data.map(({ id, user_id, ...rest }) => ({
-              doctor_id: user_id,
-              ...rest,
-            }));
+            dbResult.data = dbResult.data
+              .map(({ id, user_id, ...rest }) => ({
+                doctor_id: user_id,
+                ...rest,
+              }))
+              .filter((d) => d.doctor_id); // drop rows with no user_id (bad/legacy data)
             console.log('[DB:doctors] Remapped sample:', JSON.stringify(dbResult.data[0]));
           }
           functionResponses.push({ name: functionName, response: dbResult });
@@ -578,8 +580,9 @@ async function chatWithGroq(message, conversationHistory, user) {
 
       // Short-circuit for pending booking — no second LLM call needed
       if (pendingBooking) {
+        const { doctor_name, date, time } = pendingBooking;
         return {
-          response: `I found a doctor for you. Would you like me to confirm the appointment?`,
+          response: `Here are your booking details:\n\n**Doctor:** ${doctor_name || 'Selected Doctor'}\n**Date:** ${date}\n**Time:** ${time}\n\nPlease confirm using the buttons below.`,
           action: navigationAction,
           pendingBooking,
         };
@@ -587,8 +590,67 @@ async function chatWithGroq(message, conversationHistory, user) {
 
       // Second call with function results to get the final text response
       const followUp = await chat.sendMessage({ message: functionResponses.map((fr) => ({ functionResponse: fr })) });
+
+      // Gemini may respond to the follow-up with ANOTHER function call (e.g. book_appointment
+      // after it first queried the DB to verify a doctor).  Handle that second layer here.
+      const followUpFunctionCalls = followUp.functionCalls ?? [];
+      if (followUpFunctionCalls.length > 0) {
+        let followUpPending = null;
+        let followUpNav = navigationAction;
+        const followUpResponses = [];
+
+        for (const fc of followUpFunctionCalls) {
+          const { name: fnName, args: fnArgs } = fc;
+
+          if (fnName === 'query_database') {
+            const dbResult = await executeDbQuery(fnArgs, user.id, user.role);
+            if (fnArgs.table === 'doctors' && dbResult.data) {
+              dbResult.data = dbResult.data.map(({ id, user_id, ...rest }) => ({
+                doctor_id: user_id,
+                ...rest,
+              }));
+            }
+            followUpResponses.push({ name: fnName, response: dbResult });
+          } else if (fnName === 'book_appointment') {
+            if (user.role !== 'patient') {
+              followUpResponses.push({ name: fnName, response: { error: 'Only patients can book appointments.' } });
+            } else {
+              const { doctor_id, doctor_name, date, time, reason } = fnArgs;
+              followUpPending = { doctor_id, doctor_name, date, time, reason: reason || null };
+              followUpResponses.push({
+                name: fnName,
+                response: {
+                  awaiting_confirmation: true,
+                  message: `Ready to book with ${doctor_name || 'the doctor'} on ${date} at ${time}. Awaiting confirmation.`,
+                },
+              });
+            }
+          } else if (fnName === 'navigate_to') {
+            followUpNav = { action: fnArgs.action, target: fnArgs.target };
+            followUpResponses.push({ name: fnName, response: { success: true, message: `Navigating to ${fnArgs.target}` } });
+          }
+        }
+
+        if (followUpPending) {
+          const { doctor_name, date, time } = followUpPending;
+          return {
+            response: `Here are your booking details:\n\n**Doctor:** ${doctor_name || 'Selected Doctor'}\n**Date:** ${date}\n**Time:** ${time}\n\nPlease confirm using the buttons below.`,
+            action: followUpNav,
+            pendingBooking: followUpPending,
+          };
+        }
+
+        // Third call for any remaining non-booking function results
+        const finalFollowUp = await chat.sendMessage({ message: followUpResponses.map((fr) => ({ functionResponse: fr })) });
+        return {
+          response: finalFollowUp.text || '',
+          action: followUpNav,
+          pendingBooking: null,
+        };
+      }
+
       return {
-        response: followUp.text,
+        response: followUp.text || '',
         action: navigationAction,
         pendingBooking: null,
       };
