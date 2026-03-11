@@ -826,23 +826,33 @@ export const forgotPassword = async (req, res, next) => {
  */
 export const resetPassword = async (req, res, next) => {
   try {
-    const { token, password } = req.body;
+    const { access_token, refresh_token, password } = req.body;
 
-    if (!token || !password) {
-      throw new ValidationError('Token and new password are required');
+    if (!access_token || !password) {
+      throw new ValidationError('Access token and new password are required');
     }
 
     if (password.length < 8) {
       throw new ValidationError('Password must be at least 8 characters');
     }
 
-    // Verify token and update password
-    const { error } = await supabase.auth.updateUser({
-      password: password
+    // Create an anon client and set the recovery session from the token
+    const { createClient } = await import('@supabase/supabase-js');
+    const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+    const { error: sessionError } = await anonSupabase.auth.setSession({
+      access_token,
+      refresh_token: refresh_token || access_token,
     });
 
-    if (error) {
+    if (sessionError) {
       throw new UnauthenticatedError('Invalid or expired reset token');
+    }
+
+    const { error } = await anonSupabase.auth.updateUser({ password });
+
+    if (error) {
+      throw new UnauthenticatedError('Failed to reset password. The link may have expired.');
     }
 
     res.json({
