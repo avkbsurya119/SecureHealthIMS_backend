@@ -89,10 +89,11 @@ export const getAllUsers = async (req, res, next) => {
 
         if (patientsError) throw new Error(patientsError.message);
 
-        // Fetch doctors
+        // Fetch doctors from the users table (new registrations go here, not legacy doctors table)
         const { data: doctors, error: doctorsError } = await supabase
-            .from('doctors')
-            .select('id, name, email, specialization, phone, department_id, created_at, verified, user_id, departments(name)')
+            .from('users')
+            .select('id, full_name, email, specialization, phone, created_at, approval_status')
+            .eq('role', 'doctor')
             .order('created_at', { ascending: false });
 
         if (doctorsError) throw new Error(doctorsError.message);
@@ -117,7 +118,17 @@ export const getAllUsers = async (req, res, next) => {
                 user_id: p.user_id,
                 role: 'patient'
             })),
-            ...doctors.map(d => ({ ...d, role: 'doctor' })),
+            ...doctors.map(d => ({
+                id: d.id,
+                name: d.full_name,
+                email: d.email,
+                specialization: d.specialization,
+                phone: d.phone,
+                created_at: d.created_at,
+                role: 'doctor',
+                // verified=true means approved; frontend uses !verified to show Approve button
+                verified: d.approval_status === 'approved',
+            })),
             ...nurses.map(n => ({
                 id: n.id,
                 name: n.full_name,
@@ -125,7 +136,7 @@ export const getAllUsers = async (req, res, next) => {
                 created_at: n.created_at,
                 role: 'nurse',
                 isverified: n.approval_status !== 'approved',
-                verified: n.is_active // keep verified to avoid breaking other stats UI if needed
+                verified: n.is_active
             }))
         ];
 
@@ -174,30 +185,34 @@ export const approveDoctor = async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        // Verify doctor exists first
+        // Look up the doctor in the users table (new registration flow)
         const { data: doctor, error: fetchError } = await supabase
-            .from('doctors')
-            .select('id, name, email')
+            .from('users')
+            .select('id, full_name, email, role')
             .eq('id', id)
+            .eq('role', 'doctor')
             .single();
 
         if (fetchError || !doctor) {
             throw new NotFoundError('Doctor not found');
         }
 
-        // Update verified status
+        // Approve: update approval_status in users table
         const { error: updateError } = await supabase
-            .from('doctors')
-            .update({ verified: true })
+            .from('users')
+            .update({ approval_status: 'approved' })
             .eq('id', id);
 
         if (updateError) {
             throw new Error(updateError.message);
         }
 
+        // Also update legacy doctors table if an entry exists (backward compatibility)
+        await supabase.from('doctors').update({ verified: true }).eq('user_id', id);
+
         res.json({
             success: true,
-            message: `Doctor ${doctor.name} has been approved`
+            message: `Doctor ${doctor.full_name} has been approved`
         });
     } catch (error) {
         next(error);
