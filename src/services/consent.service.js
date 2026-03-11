@@ -14,7 +14,13 @@ export class ConsentService {
    * @returns {Promise<boolean>} - true if consent granted, false otherwise
    */
   static async hasConsent(patientId, consentType) {
-    const { data, error } = await supabase
+    // Check if patientId is actually a user_id from the users table
+    // Clinical tables like patient_consents use the internal patients.id
+    
+    let internalPatientId = patientId;
+
+    // Fast check: if it's not in patient_consents, it might be a user_id
+    const { data: consentData, error: consentError } = await supabase
       .from('patient_consents')
       .select('status')
       .eq('patient_id', patientId)
@@ -22,12 +28,31 @@ export class ConsentService {
       .eq('status', 'granted')
       .single();
 
-    // DEFAULT DENY: No consent record or error = no access
-    if (error || !data) {
-      return false;
+    if (!consentError && consentData) {
+      return true;
     }
 
-    return data.status === 'granted';
+    // If not found, it might be a user_id (UUID from users table)
+    // We need to find the corresponding patients.id
+    const { data: patientRecord } = await supabase
+      .from('patients')
+      .select('id')
+      .eq('user_id', patientId)
+      .single();
+
+    if (patientRecord) {
+      const { data: retryData } = await supabase
+        .from('patient_consents')
+        .select('status')
+        .eq('patient_id', patientRecord.id)
+        .eq('consent_type', consentType)
+        .eq('status', 'granted')
+        .single();
+      
+      return !!(retryData && retryData.status === 'granted');
+    }
+
+    return false;
   }
 
   /**

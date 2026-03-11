@@ -37,18 +37,37 @@ export const searchPatients = asyncHandler(async (req, res) => {
 
     // CONSENT ENFORCEMENT: Filter out patients who haven't granted medical_records consent.
     // Doctors can only see patients who have explicitly allowed access to their data.
-    let consentedPatients = patients;
+    let consentedPatients = [];
+    
     if (patients.length > 0) {
-        const patientIds = patients.map(p => p.id);
-        const { data: grantedConsents } = await supabase
-            .from('patient_consents')
-            .select('patient_id')
-            .in('patient_id', patientIds)
-            .eq('consent_type', 'medical_records')
-            .eq('status', 'granted');
+        const userIds = patients.map(p => p.id);
+        
+        // 1. Map userIds to internal patient IDs
+        const { data: patientMappings } = await supabase
+            .from('patients')
+            .select('id, user_id')
+            .in('user_id', userIds);
+            
+        if (patientMappings && patientMappings.length > 0) {
+            const userIdToPatientId = new Map(patientMappings.map(m => [m.user_id, m.id]));
+            const patientIds = patientMappings.map(m => m.id);
+            
+            // 2. Check consents using patient IDs
+            const { data: grantedConsents } = await supabase
+                .from('patient_consents')
+                .select('patient_id')
+                .in('patient_id', patientIds)
+                .eq('consent_type', 'medical_records')
+                .eq('status', 'granted');
 
-        const consentedIds = new Set((grantedConsents || []).map(c => c.patient_id));
-        consentedPatients = patients.filter(p => consentedIds.has(p.id));
+            const consentedPatientIds = new Set((grantedConsents || []).map(c => c.patient_id));
+            
+            // 3. Filter the original patients list
+            consentedPatients = patients.filter(p => {
+                const pId = userIdToPatientId.get(p.id);
+                return pId && consentedPatientIds.has(pId);
+            });
+        }
     }
 
     // Audit Log: Record search action
@@ -252,16 +271,42 @@ export const registerPatientAsUser = asyncHandler(async (req, res) => {
     if (insertError) {
         console.error('CRITICAL: Error creating user record in users table:');
         console.error('User Data attempted:', JSON.stringify(userData, null, 2));
-        console.error('Supabase Error:', {
-            code: insertError.code,
-            message: insertError.message,
-            details: insertError.details,
-            hint: insertError.hint
-        });
         throw insertError;
     }
 
-    console.log(`Successfully registered patient ${patientId} as user`);
+    // CREATE CORRESPONDING PATIENT RECORD (Crucial for clinical lookups)
+    const { data: newPatient, error: patientError } = await supabase
+        .from('patients')
+        .insert({
+            user_id: patientId,
+            name: full_name.trim(),
+            email: req.user.email,
+            phone: phone.trim(),
+            dob: date_of_birth,
+            gender: gender.toLowerCase(),
+            address: address?.trim() || null
+        })
+        .select()
+        .single();
+
+    if (patientError) {
+        console.error('Error creating patient record:', patientError);
+        // We don't rollback user creation because they are at least a valid user now,
+        // but this is a serious inconsistency.
+    } else {
+        // Create default consents for the new patient
+        const consentTypes = ['medical_records', 'data_sharing', 'treatment', 'research'];
+        const consents = consentTypes.map(type => ({
+            patient_id: newPatient.id,
+            consent_type: type,
+            status: 'denied', // Default deny as per privacy requirements
+            denied_at: new Date().toISOString()
+        }));
+        
+        await supabase.from('patient_consents').insert(consents);
+    }
+
+    console.log(`Successfully registered patient ${patientId} as user and patient`);
 
     return ApiResponse.success(res, {
         message: 'Successfully registered! You can now be found by doctors in the system.',
