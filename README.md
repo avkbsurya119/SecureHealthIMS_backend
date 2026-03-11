@@ -1,184 +1,148 @@
-# SecureHealthIMS Backend
+﻿# SecureHealthIMS Backend
 
-A secure healthcare information management system API built with Node.js and Express.js.
+Enterprise-grade backend API for SecureHealthIMS, focused on healthcare data protection, consent-aware access, and operational reliability.
 
-## Tech Stack
+## Overview
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Node.js | 20+ | Runtime |
-| Express.js | 4.22.1 | Web Framework |
-| Supabase | 2.90.1 | Database & Auth |
-| JWT | 9.0.3 | Authentication |
-| Helmet | 8.1.0 | Security Headers |
+SecureHealthIMS Backend provides role-aware REST APIs for patient care workflows, administration, and AI-assisted interactions. The service is built with Express and Supabase, and is designed around strict access control and auditability requirements expected in healthcare systems.
 
-## Live Demo
+## Current Capabilities
 
-**Production:** https://securehealthims-backend.onrender.com/
+- Authentication and profile APIs with OTP-based registration verification.
+- Role-based access control for `patient`, `doctor`, `nurse`, and `admin` roles.
+- Consent-first data access model with default-deny behavior for sensitive records.
+- Clinical workflows for appointments, visits, prescriptions, and medical records.
+- Administrative workflows for user lifecycle, approval, and oversight.
+- Audit trail APIs and middleware coverage for sensitive operations.
+- Chatbot API integration for text/voice healthcare assistant scenarios.
 
-**Health Check:** https://securehealthims-backend.onrender.com/api/health
+## Technology Stack
 
-## Getting Started
+| Layer | Technology | Version |
+|------|------------|---------|
+| Runtime | Node.js | 20+ |
+| API Framework | Express | 4.22.1 |
+| Data + Auth | Supabase JS | 2.90.1 |
+| Security Headers | Helmet | 8.1.0 |
+| Throttling | express-rate-limit | 8.2.1 |
+| Token Utilities | jsonwebtoken | 9.0.3 |
 
-### Prerequisites
+## Service Endpoints
+
+- Production API: `https://securehealthims-backend.onrender.com/`
+- Health endpoint: `https://securehealthims-backend.onrender.com/api/health`
+
+## Documentation Index
+
+- [API Documentation](./API_DOCUMENTATION.md)
+- [DevOps / Deployment Guide](./DEVOPS_ARCHITECTURE.md)
+- [Test Documentation](./TEST_DOCUMENTATION.md)
+- [User Documentation](./USER_DOCUMENTATION.md)
+
+## Repository Layout
+
+```text
+src/
+  app.js
+  server.js
+  config/
+  controllers/
+  middleware/
+  routes/
+  services/
+  utils/
+
+database/
+  schema.sql
+  seed.sql
+  migrations/
+
+scripts/
+  *.js
+```
+
+## Functional Modules
+
+- `auth`: login, registration initiation/verification, current-user context.
+- `patients`: search and profile access with consent and role enforcement.
+- `appointments`: booking, retrieval, and status transitions.
+- `medical-records`: clinician access with ownership/consent rules.
+- `visits`: encounter creation and follow-up updates.
+- `prescriptions`: medication workflow with access checks.
+- `consent`: patient-managed grant/revoke and consent history.
+- `audit`: patient and admin views of data-access events.
+- `admin`: operational controls, approvals, and user governance.
+- `chatbot`: AI assistant endpoints for conversational workflows.
+
+## Security Architecture
+
+- `Helmet` for baseline HTTP hardening.
+- CORS allowlist using `FRONTEND_URL` plus approved origins.
+- Route-specific rate limiting for auth, API, and consent operations.
+- JWT-based authentication middleware.
+- RBAC enforcement at route and controller boundaries.
+- Consent middleware/service enforcing default-deny access.
+- Audit middleware/service recording sensitive operations.
+- UUID validation utilities for ID-bearing routes.
+- HTTPS enforcement in production deployments.
+
+## Prerequisites
 
 - Node.js 20+
 - npm 9+
-- Supabase account
+- Supabase project with required schema
 
-### Installation
+## Local Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/avkbsurya119/SecureHealthIMS_backend.git
-
-# Install dependencies
-cd SecureHealthIMS_backend
 npm install
-
-# Create environment file
-cp .env.example .env
-
-# Start development server
 npm run dev
 ```
 
-### Environment Variables
+## Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `NODE_ENV` | Environment (development/production) | Yes |
-| `PORT` | Server port | No (default: 3000) |
-| `SUPABASE_URL` | Supabase project URL | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Yes |
-| `FRONTEND_URL` | Frontend URL for CORS | Yes |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NODE_ENV` | Yes | `development` or `production` |
+| `PORT` | No | Service port (default `3000`) |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service-role key for backend operations |
+| `JWT_SECRET` | Yes | Secret for JWT utilities |
+| `FRONTEND_URL` | Yes | Allowed frontend origin |
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Run with nodemon for development |
 | `npm start` | Start production server |
-| `npm run dev` | Start development server with nodemon |
-| `npm run lint` | Run ESLint |
+| `npm run lint` | Run ESLint checks |
 
-## Project Structure
+## Data Model Notes
 
-```
-src/
-├── config/        # Configuration (Supabase client)
-├── controllers/   # Request handlers
-├── middleware/    # Express middleware
-│   ├── auth.middleware.js       # JWT verification
-│   ├── rbac.middleware.js       # Role-based access
-│   ├── consent.middleware.js    # Patient consent
-│   ├── audit.middleware.js      # Access logging
-│   └── errorHandler.middleware.js
-├── routes/        # API route definitions
-├── services/      # Business logic
-├── utils/         # Utilities
-├── app.js         # Express app setup
-└── server.js      # Server entry point
+The service currently supports both unified user-centric flows and compatibility paths for legacy table usage. Core tables in active flows include:
 
-database/
-├── schema.sql     # Database schema
-├── migrations/    # Schema migrations
-└── seed.sql       # Seed data
-```
+- `users`
+- `patients`
+- `doctors`
+- `appointments`
+- `medical_records`
+- `visits`
+- `prescriptions`
+- `patient_consents`
+- `audit_logs`
 
-## API Endpoints
+## Testing and Validation
 
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/login` | User login |
-| POST | `/api/auth/register/initiate` | Start registration |
-| POST | `/api/auth/register/verify` | Verify OTP |
-| GET | `/api/auth/me` | Get current user |
-| POST | `/api/auth/logout` | Logout |
+Detailed test coverage and execution guidance are in [TEST_DOCUMENTATION.md](./TEST_DOCUMENTATION.md). Debug and integration helpers are available under `tests/` and `scripts/`.
 
-### Patients
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/patients/search` | Search patients |
-| GET | `/api/patients/:id` | Get patient by ID |
-| GET | `/api/patients/me` | Get own patient data |
+## Deployment
 
-### Appointments
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/appointments/me` | Get my appointments |
-| POST | `/api/appointments` | Create appointment |
-| PATCH | `/api/appointments/:id/status` | Update status |
+Primary deployment target is Render. Infrastructure and pipeline details are documented in [DEVOPS_ARCHITECTURE.md](./DEVOPS_ARCHITECTURE.md).
 
-### Medical Records
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/medical-records/me` | Get my records |
-| POST | `/api/medical-records` | Create record |
+## Related Repositories
 
-### Admin
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/admin/stats` | Dashboard stats |
-| GET | `/api/admin/users` | List all users |
-| PATCH | `/api/admin/users/:id/approve` | Approve user |
-
-## Security Features
-
-### Middleware Pipeline
-```
-Request -> Helmet -> CORS -> Rate Limit -> Auth -> RBAC -> Consent -> Audit -> Controller
-```
-
-| Middleware | Purpose |
-|------------|---------|
-| Helmet | Security headers (CSP, HSTS, etc.) |
-| CORS | Cross-origin control |
-| Rate Limiter | Request throttling |
-| Auth | JWT verification |
-| RBAC | Role-based access control |
-| Consent | Patient consent verification |
-| Audit | Access logging for compliance |
-
-### HIPAA Compliance
-
-- Patient consent verification before data access
-- Complete audit trail of all data access
-- Role-based access control
-- Input validation and sanitization
-- UUID validation for all IDs
-
-## CI/CD Pipeline
-
-The project uses GitHub Actions for CI and Render for CD.
-
-| Stage | Tool | Status |
-|-------|------|--------|
-| Lint | ESLint | Non-blocking |
-| Syntax Check | Node.js | Required |
-| Security Audit | npm audit | Warning |
-| Integration Tests | Custom scripts | Non-blocking |
-| Deploy | Render | Auto on main |
-
-## Database
-
-Uses Supabase PostgreSQL with:
-- Row Level Security (RLS)
-- Audit logging triggers
-- Consent management tables
-
-### Key Tables
-- `users` - All user accounts
-- `patients` - Patient records
-- `medical_records` - Medical records
-- `appointments` - Appointments
-- `patient_consents` - Consent settings
-- `audit_logs` - Access audit trail
-
-## Related
-
-- [Frontend Repository](https://github.com/avkbsurya119/SecureHealthIMS_frontend)
-- [API Documentation](./API_DOCUMENTATION.md)
+- [SecureHealthIMS Frontend](https://github.com/avkbsurya119/SecureHealthIMS_frontend)
 
 ## License
 

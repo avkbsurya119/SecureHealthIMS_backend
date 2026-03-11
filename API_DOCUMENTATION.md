@@ -1,422 +1,774 @@
-# 🏥 Secure Healthcare Management System - API Documentation
+# SecureHealthIMS API Documentation
 
-## 📋 Overview
+## Comprehensive REST API Reference
 
-Complete backend API for a secure healthcare management system with:
-- ✅ **JWT Authentication** via Supabase Auth
-- ✅ **Role-Based Access Control** (admin, doctor, nurse, patient)
-- ✅ **Consent Management** (default DENY policy)
-- ✅ **Audit Logging** (immutable trail of all access)
-- ✅ **HIPAA/GDPR Compliant**
-
-**Base URL**: `http://localhost:3000/api`
-
----
-
-## 🔐 Authentication
-
-All protected endpoints require a JWT token in the Authorization header:
-
-```
-Authorization: Bearer <your-jwt-token>
-```
-
-### How to Get a Token
-
-1. **Sign Up/Sign In** via Supabase Auth (use Supabase client library or REST API)
-2. Extract the `access_token` from the response
-3. Use the token in all subsequent API requests
+| Document Metadata | |
+|-------------------|-----------------|
+| **Project** | SecureHealthIMS |
+| **Version** | 2.0.0 |
+| **Date** | March 11, 2026 |
+| **Classification** | Technical Reference |
+| **Base URL (Production)** | https://securehealthims-backend.onrender.com |
+| **Base URL (Development)** | http://localhost:3000 |
 
 ---
 
-## 📌 API Endpoints
+## Table of Contents
 
-### 🏥 Medical Records
-
-#### 1. Create Medical Record
-```
-POST /api/medical-records
-```
-
-**Auth**: Required (Doctor only)
-
-**Request Body**:
-```json
-{
-  "patient_id": "uuid",
-  "diagnosis": "Patient diagnosed with...",
-  "prescription": "Prescribed medication...",
-  "notes": "Additional notes..."
-}
-```
-
-**Response** (201):
-```json
-{
-  "success": true,
-  "message": "Medical record created successfully",
-  "data": {
-    "id": "uuid",
-    "patient_id": "uuid",
-    "doctor_id": "uuid",
-    "diagnosis": "...",
-    "prescription": "...",
-    "notes": "...",
-    "created_by": "uuid",
-    "created_at": "2026-01-15T10:00:00Z"
-  }
-}
-```
-
-**Security**:
-- ✅ Only doctors can create
-- ✅ Automatically sets `created_by` to logged-in doctor
-- ✅ Logged in audit trail
+1. [Overview](#1-overview)
+2. [Authentication](#2-authentication)
+3. [Error Handling](#3-error-handling)
+4. [Rate Limiting](#4-rate-limiting)
+5. [API Endpoints](#5-api-endpoints)
+   - [Health Check](#51-health-check)
+   - [Authentication](#52-authentication-endpoints)
+   - [Patients](#53-patient-endpoints)
+   - [Doctors](#54-doctor-endpoints)
+   - [Appointments](#55-appointment-endpoints)
+   - [Visits](#56-visit-endpoints)
+   - [Prescriptions](#57-prescription-endpoints)
+   - [Consent Management](#58-consent-endpoints)
+   - [Audit Logs](#59-audit-endpoints)
+   - [Admin](#510-admin-endpoints)
+   - [AI Chatbot](#511-chatbot-endpoints)
+6. [Data Models](#6-data-models)
+7. [Security Features](#7-security-features)
+8. [Testing Guide](#8-testing-guide)
 
 ---
 
-#### 2. Get Patient Medical Records
+## 1. Overview
+
+### 1.1 API Architecture
+
+The SecureHealthIMS API follows RESTful principles with:
+
+- JSON request/response format
+- JWT-based authentication via Supabase Auth
+- Role-Based Access Control (RBAC) - admin, doctor, nurse, patient
+- Patient consent management (DEFAULT DENY policy)
+- Comprehensive audit logging for HIPAA/GDPR compliance
+- AI Chatbot with multilingual voice support
+
+### 1.2 Request Format
+
+All API requests should include:
+
+```http
+Content-Type: application/json
+Authorization: Bearer <jwt_token>
 ```
-GET /api/medical-records/patient/:patientId
-```
 
-**Auth**: Required
+### 1.3 Response Format
 
-**Query Parameters**:
-- None
+All API responses follow this structure:
 
-**Response** (200):
+**Success Response:**
 ```json
 {
   "success": true,
-  "message": "Success",
-  "data": {
-    "patient": {
-      "id": "uuid",
-      "name": "John Doe"
-    },
-    "records": [
-      {
-        "id": "uuid",
-        "diagnosis": "...",
-        "prescription": "...",
-        "notes": "...",
-        "created_at": "2026-01-15T10:00:00Z",
-        "doctors": {
-          "id": "uuid",
-          "name": "Dr. Smith",
-          "specialization": "Cardiology"
-        }
-      }
-    ],
-    "total": 5,
-    "consent_status": {
-      "checked": true,
-      "granted": true,
-      "reason": "explicit_grant"
-    }
-  }
+  "data": { ... },
+  "message": "Operation successful"
 }
 ```
 
-**Security**:
-- ✅ Patients can access their own records (no consent check)
-- ✅ Doctors/Nurses require explicit consent grant
-- ✅ Admin can access with override (logged)
-
-**Error** (403 - No Consent):
+**Error Response:**
 ```json
 {
   "success": false,
   "error": {
-    "message": "Patient has not granted consent to access medical records",
-    "type": "ConsentRequiredError"
+    "message": "Error description",
+    "type": "ErrorType"
   }
 }
 ```
 
 ---
 
-#### 3. Get My Medical Records (Patient View)
-```
-GET /api/medical-records/me
+## 2. Authentication
+
+### 2.1 JWT Token
+
+All protected endpoints require a valid JWT token in the Authorization header:
+
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-**Auth**: Required (Patient only)
+### 2.2 Token Payload
 
-**Response** (200):
+```json
+{
+  "sub": "user-uuid",
+  "email": "user@example.com",
+  "role": "patient|doctor|admin|nurse",
+  "iat": 1234567890,
+  "exp": 1234567890
+}
+```
+
+### 2.3 Token Expiration
+
+| Token Type | Expiration |
+|------------|------------|
+| Access Token | 24 hours |
+| OTP Token | 10 minutes |
+
+### 2.4 Roles & Permissions
+
+| Role | Description | Access Level |
+|------|-------------|--------------|
+| `patient` | Patient users | Own data only |
+| `doctor` | Medical professionals | Patient data (with consent) |
+| `nurse` | Nursing staff | Limited patient data |
+| `admin` | System administrators | User management only (no medical data) |
+
+---
+
+## 3. Error Handling
+
+### 3.1 HTTP Status Codes
+
+| Code | Meaning | Usage |
+|------|---------|-------|
+| 200 | OK | Successful request |
+| 201 | Created | Resource created |
+| 400 | Bad Request | Invalid input |
+| 401 | Unauthorized | Missing/invalid token |
+| 403 | Forbidden | Insufficient permissions / Consent required |
+| 404 | Not Found | Resource not found |
+| 409 | Conflict | Resource already exists |
+| 422 | Unprocessable Entity | Validation failed |
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Internal Server Error | Server error |
+
+### 3.2 Error Types
+
+| Error Type | Description |
+|------------|-------------|
+| `AuthenticationError` | Authentication required or failed |
+| `UnauthorizedError` | Role not authorized |
+| `ConsentRequiredError` | Patient consent not granted |
+| `OwnershipError` | Resource ownership validation failed |
+| `ValidationError` | Input validation failed |
+| `NotFoundError` | Resource not found |
+
+---
+
+## 4. Rate Limiting
+
+### 4.1 Rate Limits
+
+| Endpoint Category | Limit | Window |
+|-------------------|-------|--------|
+| Authentication | 10 requests | 15 minutes |
+| API (General) | 100 requests | 15 minutes |
+| Chatbot | 30 requests | 1 minute |
+
+### 4.2 Rate Limit Headers
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1234567890
+```
+
+---
+
+## 5. API Endpoints
+
+### 5.1 Health Check
+
+#### GET /api/health
+
+Check API server health status.
+
+**Authentication:** Not required
+
+**Response:**
 ```json
 {
   "success": true,
   "data": {
-    "records": [...],
-    "total": 5
+    "status": "healthy",
+    "timestamp": "2026-03-11T10:00:00.000Z"
   }
 }
 ```
 
-**Security**:
-- ✅ Patient-only endpoint
-- ✅ Automatically filters by logged-in patient
-
 ---
 
-#### 4. Get Single Medical Record
-```
-GET /api/medical-records/:recordId
-```
+### 5.2 Authentication Endpoints
 
-**Auth**: Required
+#### POST /api/auth/register/initiate
 
-**Security**: Requires consent check
+Initiate registration with email verification (OTP sent).
 
----
+**Authentication:** Not required
 
-#### 5. Update Medical Record
-```
-PUT /api/medical-records/:recordId
-```
-
-**Auth**: Required (Doctor only)
-
-**Request Body**:
+**Request Body:**
 ```json
 {
-  "diagnosis": "Updated diagnosis",
-  "prescription": "Updated prescription",
-  "notes": "Updated notes"
+  "email": "user@example.com",
+  "password": "SecurePass123!"
 }
 ```
 
-**Response** (200):
+**Response:**
 ```json
 {
   "success": true,
-  "message": "Medical record updated successfully",
-  "data": {...}
+  "message": "Verification code sent to email"
 }
 ```
 
-**Security**:
-- ✅ Only the doctor who created the record can update it
-- ✅ Automatically sets `updated_by` and `updated_at`
-- ✅ Logged in audit trail
+---
+
+#### POST /api/auth/register/verify
+
+Complete registration with OTP verification.
+
+**Authentication:** Not required
+
+**Request Body (Patient):**
+```json
+{
+  "email": "patient@example.com",
+  "password": "SecurePass123!",
+  "token": "12345678",
+  "name": "John Doe",
+  "phone": "+1234567890",
+  "role": "patient",
+  "date_of_birth": "1990-01-15",
+  "gender": "male",
+  "address": "123 Main St, City"
+}
+```
+
+**Request Body (Doctor):**
+```json
+{
+  "email": "doctor@example.com",
+  "password": "SecurePass123!",
+  "token": "12345678",
+  "name": "Dr. Jane Smith",
+  "phone": "+1234567890",
+  "role": "doctor",
+  "specialization": "Cardiology",
+  "department_id": "uuid-optional"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Registration successful"
+}
+```
+
+**Note:** Doctor accounts require admin approval before they can log in.
 
 ---
 
-### 📅 Appointments
+#### POST /api/auth/login
 
-#### 1. Create Appointment
+User login.
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!"
+}
 ```
-POST /api/appointments
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "uuid",
+      "email": "user@example.com",
+      "name": "John Doe",
+      "role": "patient",
+      "verified": true
+    },
+    "token": "eyJhbGciOiJIUzI1NiIs..."
+  }
+}
 ```
 
-**Auth**: Required (Doctor, Nurse, or Admin)
+**Error (Pending Approval):**
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Your account is pending approval by an administrator"
+  }
+}
+```
 
-**Request Body**:
+---
+
+#### GET /api/auth/me
+
+Get current authenticated user profile.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "role": "patient",
+    "phone": "+1234567890",
+    "address": "123 Main St",
+    "blood_group": "O+",
+    "allergies": "None",
+    "created_at": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+---
+
+#### PUT /api/auth/profile
+
+Update user profile.
+
+**Authentication:** Required
+
+**Request Body (Patient):**
+```json
+{
+  "phone": "+1234567890",
+  "address": "456 New St, City",
+  "blood_group": "O+",
+  "dob": "1990-01-15",
+  "gender": "male",
+  "allergies": "None",
+  "medical_history": "No major conditions",
+  "emergency_contact": "Jane Doe",
+  "emergency_phone": "+0987654321"
+}
+```
+
+**Request Body (Doctor):**
+```json
+{
+  "phone": "+1234567890",
+  "specialization": "Cardiology",
+  "license_number": "LIC-12345",
+  "education": "MBBS, MD",
+  "experience_years": 10,
+  "hospital_affiliation": "City Hospital"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Profile updated successfully"
+}
+```
+
+---
+
+#### POST /api/auth/logout
+
+Logout current user.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```
+
+---
+
+### 5.3 Patient Endpoints
+
+#### GET /api/patients/search
+
+Search patients (Doctor only, requires consent).
+
+**Authentication:** Required (Doctor)
+
+**Query Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `q` | string | Yes | Search query (name, email, phone) - min 2 chars |
+
+**Request:**
+```
+GET /api/patients/search?q=john
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "date_of_birth": "1990-01-15",
+      "gender": "male",
+      "blood_group": "O+"
+    }
+  ]
+}
+```
+
+**Note:** Only returns patients who have granted consent for data sharing.
+
+---
+
+#### GET /api/patients/me
+
+Get current patient's own data.
+
+**Authentication:** Required (Patient)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "date_of_birth": "1990-01-15",
+    "gender": "male",
+    "blood_group": "O+",
+    "address": "123 Main St"
+  }
+}
+```
+
+---
+
+#### POST /api/patients/register-user
+
+Register patient in the unified users table (for legacy patients).
+
+**Authentication:** Required (Patient)
+
+**Request Body:**
+```json
+{
+  "full_name": "John Doe",
+  "phone": "+1234567890",
+  "date_of_birth": "1990-01-15",
+  "gender": "male",
+  "blood_group": "O+",
+  "allergies": "Penicillin",
+  "medical_history": "None",
+  "emergency_contact": "Jane Doe",
+  "emergency_phone": "+0987654321"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Successfully registered in the system"
+  }
+}
+```
+
+---
+
+### 5.4 Doctor Endpoints
+
+#### GET /api/doctors
+
+List all verified doctors.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "name": "Dr. Jane Smith",
+      "specialization": "Cardiology",
+      "department": "Cardiology Department"
+    }
+  ]
+}
+```
+
+---
+
+### 5.5 Appointment Endpoints
+
+#### GET /api/appointments/me
+
+Get current user's appointments.
+
+**Authentication:** Required
+
+**Response (Patient):**
+```json
+{
+  "success": true,
+  "data": {
+    "appointments": [
+      {
+        "id": "uuid",
+        "date": "2026-03-15",
+        "time": "10:00",
+        "status": "Pending",
+        "reason": "Regular checkup",
+        "doctor_details": {
+          "name": "Dr. Jane Smith",
+          "specialization": "Cardiology"
+        }
+      }
+    ]
+  }
+}
+```
+
+**Response (Doctor):**
+```json
+{
+  "success": true,
+  "data": {
+    "appointments": [
+      {
+        "id": "uuid",
+        "date": "2026-03-15",
+        "time": "10:00",
+        "status": "Pending",
+        "reason": "Regular checkup",
+        "users": {
+          "name": "John Doe"
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### POST /api/appointments
+
+Create a new appointment.
+
+**Authentication:** Required (Patient)
+
+**Request Body:**
+```json
+{
+  "doctor_id": "uuid",
+  "date": "2026-03-15",
+  "time": "10:00",
+  "reason": "Regular checkup"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "date": "2026-03-15",
+    "time": "10:00",
+    "status": "Pending"
+  },
+  "message": "Appointment created successfully"
+}
+```
+
+---
+
+#### PATCH /api/appointments/:id/status
+
+Update appointment status (Doctor only).
+
+**Authentication:** Required (Doctor)
+
+**Request Body:**
+```json
+{
+  "status": "Confirmed|Cancelled|Completed|No-Show",
+  "decline_reason": "Optional reason for cancellation"
+}
+```
+
+**Status Transitions:**
+- `Pending` → `Confirmed` or `Cancelled`
+- `Confirmed` → `Completed` or `No-Show` (only after appointment time)
+- `Completed`, `Cancelled`, `No-Show` → (no changes allowed)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Appointment status updated"
+}
+```
+
+---
+
+### 5.6 Visit Endpoints
+
+#### GET /api/visits/me
+
+Get current patient's visit history.
+
+**Authentication:** Required (Patient)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "visits": [
+      {
+        "id": "uuid",
+        "visit_date": "2026-03-01",
+        "chief_complaint": "Headache",
+        "diagnosis": "Migraine",
+        "notes": "Prescribed pain relief",
+        "doctor": {
+          "name": "Dr. Jane Smith",
+          "specialization": "Neurology"
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### POST /api/visits
+
+Create a new visit record (Doctor only).
+
+**Authentication:** Required (Doctor)
+
+**Request Body:**
 ```json
 {
   "patient_id": "uuid",
-  "doctor_id": "uuid",
-  "appointment_date": "2026-01-20",
-  "appointment_time": "14:30"
+  "visit_date": "2026-03-11",
+  "chief_complaint": "Chest pain",
+  "diagnosis": "Angina",
+  "notes": "Recommended follow-up in 2 weeks"
 }
 ```
 
-**Response** (201):
+**Response:**
 ```json
 {
   "success": true,
-  "message": "Appointment created successfully",
-  "data": {
-    "id": "uuid",
-    "patient_id": "uuid",
-    "doctor_id": "uuid",
-    "appointment_date": "2026-01-20",
-    "appointment_time": "14:30:00",
-    "status": "scheduled",
-    "created_by": "uuid",
-    "patients": {...},
-    "doctors": {...}
-  }
+  "data": { ... },
+  "message": "Visit record created successfully"
 }
 ```
 
-**Security**:
-- ✅ Automatically sets `created_by`
-- ✅ Prevents double booking (unique constraint on doctor/date/time)
+**Security:** Requires patient consent for medical records access.
 
 ---
 
-#### 2. Get My Appointments
-```
-GET /api/appointments/me
-```
+### 5.7 Prescription Endpoints
 
-**Auth**: Required
+#### GET /api/prescriptions/me
 
-**Query Parameters**:
-- `status` (optional): `scheduled`, `completed`, `cancelled`
-- `from_date` (optional): `2026-01-01`
-- `to_date` (optional): `2026-01-31`
+Get current patient's prescriptions.
 
-**Response** (200):
+**Authentication:** Required (Patient)
+
+**Response:**
 ```json
 {
   "success": true,
   "data": {
-    "appointments": [...],
-    "total": 10
+    "prescriptions": [
+      {
+        "id": "uuid",
+        "medication_name": "Amoxicillin",
+        "dosage": "500mg",
+        "frequency": "3 times daily",
+        "duration": "7 days",
+        "instructions": "Take after meals",
+        "users": {
+          "name": "Dr. Jane Smith",
+          "specialization": "General Medicine"
+        }
+      }
+    ]
   }
 }
 ```
 
-**Security**:
-- ✅ Patients see their own appointments
-- ✅ Doctors see appointments assigned to them
-- ✅ Admin sees all appointments
-
 ---
 
-#### 3. Get Appointment by ID
-```
-GET /api/appointments/:appointmentId
-```
+#### POST /api/prescriptions
 
-**Auth**: Required
+Create a new prescription (Doctor only).
 
-**Security**: Requires ownership (patient or assigned doctor)
+**Authentication:** Required (Doctor)
 
----
-
-#### 4. Update Appointment Status
-```
-PATCH /api/appointments/:appointmentId/status
-```
-
-**Auth**: Required
-
-**Request Body**:
+**Request Body:**
 ```json
 {
-  "status": "completed",
-  "cancellation_reason": "Patient requested cancellation" // Required if status is "cancelled"
+  "patient_id": "uuid",
+  "medication_name": "Amoxicillin",
+  "dosage": "500mg",
+  "frequency": "3 times daily",
+  "duration": "7 days",
+  "instructions": "Take after meals",
+  "notes": "Complete full course"
 }
 ```
 
-**Response** (200):
+**Response:**
 ```json
 {
   "success": true,
-  "message": "Appointment completed successfully",
-  "data": {...}
+  "data": { ... },
+  "message": "Prescription created successfully"
 }
 ```
-
-**Security**:
-- ✅ Validates status transitions:
-  - `scheduled` → `completed` or `cancelled` ✅
-  - `completed` → (no changes allowed) ❌
-  - `cancelled` → (no changes allowed) ❌
-- ✅ Requires `cancellation_reason` for cancelled status
-- ✅ Sets `cancelled_at`, `cancelled_by` automatically
 
 ---
 
-#### 5. Get Patient Appointments
-```
-GET /api/appointments/patient/:patientId
-```
+### 5.8 Consent Endpoints
 
-**Auth**: Required (Doctor, Nurse, or Admin)
+#### GET /api/consent/me
 
-**Query Parameters**:
-- `status` (optional): Filter by status
+Get current patient's consent settings.
 
----
+**Authentication:** Required (Patient)
 
-### 🛡️ Consent Management
-
-#### 1. Grant Consent
-```
-POST /api/consent/grant
-```
-
-**Auth**: Required (Patient only)
-
-**Request Body**:
-```json
-{
-  "consent_type": "medical_records"
-}
-```
-
-**Consent Types**:
-- `medical_records` - Access to medical history
-- `data_sharing` - Share with third parties
-- `research` - Use in research studies
-- `marketing` - Marketing communications
-- `emergency_contact` - Emergency contact access
-
-**Response** (200):
-```json
-{
-  "success": true,
-  "message": "Consent granted for medical_records",
-  "data": {
-    "id": "uuid",
-    "patient_id": "uuid",
-    "consent_type": "medical_records",
-    "status": "granted",
-    "granted_at": "2026-01-15T10:00:00Z"
-  }
-}
-```
-
-**Security**:
-- ✅ Patient-only endpoint
-- ✅ Automatically logged in `consent_history` table
-- ✅ Immediately grants access to doctors/nurses
-
----
-
-#### 2. Revoke Consent
-```
-POST /api/consent/revoke
-```
-
-**Auth**: Required (Patient only)
-
-**Request Body**:
-```json
-{
-  "consent_type": "medical_records"
-}
-```
-
-**Response** (200):
-```json
-{
-  "success": true,
-  "message": "Consent revoked for medical_records. Access to related data has been blocked.",
-  "data": {...}
-}
-```
-
-**Security**:
-- ✅ Immediately blocks access to data
-- ✅ Logged in immutable `consent_history`
-
----
-
-#### 3. Get My Consents
-```
-GET /api/consent/me
-```
-
-**Auth**: Required (Patient only)
-
-**Response** (200):
+**Response:**
 ```json
 {
   "success": true,
@@ -425,286 +777,553 @@ GET /api/consent/me
       {
         "consent_type": "medical_records",
         "status": "granted",
-        "granted_at": "2026-01-15T10:00:00Z"
+        "granted_at": "2026-03-01T00:00:00.000Z"
       },
       {
         "consent_type": "data_sharing",
-        "status": "denied"
+        "status": "revoked",
+        "revoked_at": "2026-03-10T00:00:00.000Z"
       }
-    ],
-    "total": 5,
-    "summary": {
-      "granted": 1,
-      "denied": 3,
-      "revoked": 1
-    }
+    ]
   }
 }
 ```
 
 ---
 
-#### 4. Get Consent History
-```
-GET /api/consent/history
+#### POST /api/consent/grant
+
+Grant consent for a specific type.
+
+**Authentication:** Required (Patient)
+
+**Request Body:**
+```json
+{
+  "consent_type": "medical_records|data_sharing|treatment|research"
+}
 ```
 
-**Auth**: Required (Patient only)
+**Consent Types:**
+| Type | Description |
+|------|-------------|
+| `medical_records` | Access to medical history |
+| `data_sharing` | Share with healthcare providers |
+| `treatment` | Treatment-related data sharing |
+| `research` | Use in research studies |
 
-**Response** (200):
+**Response:**
 ```json
 {
   "success": true,
-  "data": {
-    "history": [
-      {
-        "consent_type": "medical_records",
-        "previous_status": null,
-        "new_status": "granted",
-        "changed_at": "2026-01-15T10:00:00Z"
-      },
-      {
-        "consent_type": "medical_records",
-        "previous_status": "granted",
-        "new_status": "revoked",
-        "changed_at": "2026-01-15T11:00:00Z"
-      }
-    ],
-    "total": 2,
-    "note": "This is an immutable audit trail of all consent changes"
-  }
+  "message": "Consent granted for medical_records"
 }
 ```
 
-**Security**:
-- ✅ Immutable audit trail
-- ✅ Cannot be deleted or modified
+---
+
+#### POST /api/consent/revoke
+
+Revoke consent for a specific type.
+
+**Authentication:** Required (Patient)
+
+**Request Body:**
+```json
+{
+  "consent_type": "medical_records"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Consent revoked for medical_records. Access to related data has been blocked."
+}
+```
+
+**Note:** Revoking consent immediately blocks access for all healthcare providers.
 
 ---
 
-#### 5. Get Patient Consents (Admin)
-```
-GET /api/consent/patient/:patientId
-```
+### 5.9 Audit Endpoints
 
-**Auth**: Required (Admin only)
+#### GET /api/audit/me
 
-**Security**: Admin read-only view of patient consent
+Get audit logs for current patient (who accessed their data).
 
----
+**Authentication:** Required (Patient)
 
-### 📜 Audit Logs
-
-#### 1. Get My Audit Logs (Patient View)
-```
-GET /api/audit/me
-```
-
-**Auth**: Required (Patient only)
-
-**Query Parameters**:
-- `limit` (optional, default 50): Number of records
-- `offset` (optional, default 0): Pagination offset
-- `action` (optional): `READ`, `CREATE`, `UPDATE`, `DELETE`, `EXPORT`
-- `from_date` (optional): Start date
-- `to_date` (optional): End date
-
-**Response** (200):
+**Response:**
 ```json
 {
   "success": true,
   "data": {
     "logs": [
       {
-        "user_id": "doctor-uuid",
+        "id": "uuid",
         "action": "READ",
         "resource": "medical_records",
-        "resource_id": "record-uuid",
-        "timestamp": "2026-01-15T10:00:00Z",
-        "ip_address": "192.168.1.1",
-        "details": {...}
+        "created_at": "2026-03-11T10:00:00.000Z",
+        "performer": {
+          "name": "Dr. Jane Smith",
+          "role": "doctor",
+          "specialization": "Cardiology"
+        }
       }
-    ],
-    "total": 25,
-    "summary": {
-      "recent_access": [...],
-      "note": "This shows who has accessed your medical data"
-    }
+    ]
   }
 }
 ```
 
-**Security**:
-- ✅ Patient can see who accessed their data
-- ✅ HIPAA transparency requirement
-- ✅ Logs are immutable
-
 ---
 
-#### 2. Get All Audit Logs (Admin)
-```
-GET /api/audit/all
-```
+#### GET /api/audit/all
 
-**Auth**: Required (Admin only)
+Get all audit logs (Admin only).
 
-**Query Parameters**:
-- `limit`, `offset`, `action`, `user_id`, `resource`, `from_date`, `to_date`
+**Authentication:** Required (Admin)
 
-**Security**: Admin-only, full system audit trail
+**Query Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `limit` | number | No | Max results (default: 100) |
+| `offset` | number | No | Pagination offset |
+| `action` | string | No | Filter by action type |
+| `user_id` | string | No | Filter by user |
 
----
-
-#### 3. Get Patient Audit Logs (Admin)
-```
-GET /api/audit/patient/:patientId
-```
-
-**Auth**: Required (Admin only)
-
-**Security**: Admin view of all access to specific patient data
-
----
-
-## 🔒 Security Features
-
-### Authentication
-- ✅ JWT token verification via Supabase Auth
-- ✅ Inactive user rejection (`is_active = false`)
-- ✅ Token expiration handling
-
-### Authorization
-- ✅ Role-based access control (RBAC)
-- ✅ Ownership checks (doctors can only modify their own records)
-- ✅ Consent enforcement (default DENY)
-
-### Consent Management
-- ✅ **DEFAULT DENY** policy
-- ✅ Explicit consent required for doctor/nurse access
-- ✅ Patient always has access to own data
-- ✅ Immutable consent history
-
-### Audit Logging
-- ✅ All API actions logged
-- ✅ Immutable logs (cannot be modified or deleted)
-- ✅ Tracks: user, patient, action, resource, timestamp, IP
-- ✅ Patient can see who accessed their data
-
-### Input Validation
-- ✅ UUID validation
-- ✅ Required field checks
-- ✅ Enum validation (status, consent types)
-- ✅ Length validation
-- ✅ Date/time format validation
-
-### Error Handling
-- ✅ Standardized error responses
-- ✅ No sensitive data leaks in errors
-- ✅ Appropriate HTTP status codes:
-  - `200` - Success
-  - `201` - Created
-  - `401` - Unauthenticated
-  - `403` - Unauthorized / Consent Required
-  - `404` - Not Found
-  - `422` - Validation Error
-  - `500` - Internal Server Error
-
----
-
-## 🧪 Testing with Postman
-
-### 1. Setup Environment Variables
-
-Create a Postman environment with:
-- `base_url`: `http://localhost:3000/api`
-- `token`: `<your-jwt-token>`
-
-### 2. Authentication Setup
-
-1. Obtain JWT token from Supabase Auth
-2. Add to Headers in all requests:
-   ```
-   Authorization: Bearer {{token}}
-   ```
-
-### 3. Test Workflow
-
-1. **Create Consent** (as Patient):
-   - `POST /consent/grant` with `consent_type: medical_records`
-
-2. **Create Medical Record** (as Doctor):
-   - `POST /medical-records` with patient_id, diagnosis, etc.
-
-3. **View Medical Records** (as Doctor):
-   - `GET /medical-records/patient/:patientId`
-   - Should succeed if consent granted
-
-4. **Revoke Consent** (as Patient):
-   - `POST /consent/revoke` with `consent_type: medical_records`
-
-5. **Try to View Records Again** (as Doctor):
-   - `GET /medical-records/patient/:patientId`
-   - Should fail with 403 Consent Required
-
-6. **View Audit Logs** (as Patient):
-   - `GET /audit/me`
-   - See all access to your data
-
----
-
-## 🛡️ HIPAA/GDPR Compliance
-
-This API implements:
-
-✅ **Access Control**: Role-based permissions  
-✅ **Consent Management**: Explicit opt-in required  
-✅ **Audit Logging**: Complete traceability  
-✅ **Data Minimization**: Only authorized access  
-✅ **Transparency**: Patients can see who accessed their data  
-✅ **Immutability**: Audit logs cannot be tampered with  
-✅ **Encryption**: HTTPS required in production  
-✅ **Authentication**: JWT-based secure authentication  
-
----
-
-## 📊 Error Response Format
-
-All errors follow this standard format:
-
+**Response:**
 ```json
 {
-  "success": false,
-  "error": {
-    "message": "Human-readable error message",
-    "type": "ErrorType",
-    "details": ["Array of validation errors (if applicable)"],
-    "timestamp": "2026-01-15T10:00:00Z"
+  "success": true,
+  "data": {
+    "logs": [ ... ]
   }
 }
 ```
 
 ---
 
-## 🚀 Getting Started
+### 5.10 Admin Endpoints
 
-1. **Start Server**: `npm run dev`
-2. **Import Postman Collection**: (see next section)
-3. **Get JWT Token**: Sign in via Supabase Auth
-4. **Set Token**: Add to environment variables
-5. **Test Endpoints**: Follow test workflow above
+#### GET /api/admin/users
+
+Get all users (Admin only).
+
+**Authentication:** Required (Admin)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "email": "user@example.com",
+      "name": "John Doe",
+      "role": "patient",
+      "verified": true,
+      "consent": true,
+      "specialization": null,
+      "created_at": "2026-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
 
 ---
 
-## 📝 Notes
+#### POST /api/admin/approve/:id
 
-- All timestamps are in ISO 8601 format
-- All IDs are UUIDs
-- Rate limiting is applied to sensitive endpoints
-- Audit logs are automatically created for all actions
-- Consent changes are immediately effective
+Approve a doctor account.
+
+**Authentication:** Required (Admin)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Doctor approved successfully"
+}
+```
 
 ---
 
-**Last Updated**: January 15, 2026  
-**API Version**: 1.0.0  
-**Status**: Production-Ready ✅
+#### POST /api/admin/ban/:id
+
+Ban a user account.
+
+**Authentication:** Required (Admin)
+
+**Request Body:**
+```json
+{
+  "role": "patient|doctor|nurse"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User banned successfully"
+}
+```
+
+---
+
+#### POST /api/admin/unban/:id
+
+Unban a user account.
+
+**Authentication:** Required (Admin)
+
+**Request Body:**
+```json
+{
+  "role": "patient|doctor|nurse"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User unbanned successfully"
+}
+```
+
+---
+
+### 5.11 Chatbot Endpoints
+
+The AI chatbot is powered by Google Gemini for text processing and Sarvam AI for multilingual voice support (Speech-to-Text and Text-to-Speech).
+
+#### POST /api/chatbot/message
+
+Send a text message to the AI chatbot.
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "message": "What are my upcoming appointments?",
+  "conversationHistory": [
+    { "role": "user", "content": "Hello" },
+    { "role": "assistant", "content": "Hi! How can I help?" }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "response": "You have 2 upcoming appointments. Your next appointment is with Dr. Jane Smith on March 15, 2026 at 10:00 AM.",
+    "action": {
+      "action": "set_tab",
+      "target": "appointments"
+    },
+    "pendingBooking": null
+  }
+}
+```
+
+**Action Types:**
+| Action | Target | Description |
+|--------|--------|-------------|
+| `navigate` | `/path` | Navigate to a specific route |
+| `set_tab` | `tab_name` | Switch to a dashboard tab |
+
+---
+
+#### POST /api/chatbot/voice
+
+Send a voice message to the AI chatbot (multilingual support).
+
+**Authentication:** Required
+
+**Request:**
+```
+Content-Type: multipart/form-data
+
+audio: <audio_file> (webm, wav)
+conversationHistory: <JSON string>
+```
+
+**Supported Languages:**
+- English (en-IN)
+- Hindi (hi-IN)
+- Tamil (ta-IN)
+- Telugu (te-IN)
+- Kannada (kn-IN)
+- Malayalam (ml-IN)
+- Bengali (bn-IN)
+- Gujarati (gu-IN)
+- Marathi (mr-IN)
+- And more Indian languages
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transcript": "What are my appointments?",
+    "response": "You have 2 upcoming appointments...",
+    "language_code": "hi-IN",
+    "audioBase64": "base64_encoded_audio_response"
+  }
+}
+```
+
+**Note:** The response audio is generated in the same language as the input speech.
+
+---
+
+#### POST /api/chatbot/confirm-booking
+
+Confirm a pending appointment booking from chatbot.
+
+**Authentication:** Required (Patient)
+
+**Request Body:**
+```json
+{
+  "doctor_id": "uuid",
+  "doctor_name": "Dr. Jane Smith",
+  "date": "2026-03-15",
+  "time": "10:00"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "doctor_name": "Dr. Jane Smith",
+    "date": "2026-03-15",
+    "time": "10:00",
+    "status": "Pending"
+  }
+}
+```
+
+---
+
+## 6. Data Models
+
+### 6.1 User
+
+```typescript
+interface User {
+  id: string;           // UUID
+  email: string;
+  full_name: string;
+  role: 'patient' | 'doctor' | 'nurse' | 'admin';
+  phone?: string;
+  address?: string;
+  verified: boolean;
+  created_at: string;   // ISO 8601
+  updated_at: string;   // ISO 8601
+}
+```
+
+### 6.2 Patient
+
+```typescript
+interface Patient {
+  id: string;           // UUID
+  user_id: string;      // FK to users
+  date_of_birth: string;
+  gender: 'male' | 'female' | 'other';
+  blood_group?: string;
+  allergies?: string;
+  medical_history?: string;
+  emergency_contact?: string;
+  emergency_phone?: string;
+}
+```
+
+### 6.3 Doctor
+
+```typescript
+interface Doctor {
+  id: string;           // UUID
+  user_id: string;      // FK to users
+  name: string;
+  specialization: string;
+  department_id?: string;
+  license_number?: string;
+  education?: string;
+  experience_years?: number;
+}
+```
+
+### 6.4 Appointment
+
+```typescript
+interface Appointment {
+  id: string;           // UUID
+  patient_id: string;   // FK to users
+  doctor_id: string;    // FK to users
+  date: string;         // YYYY-MM-DD
+  time: string;         // HH:MM
+  status: 'Pending' | 'Confirmed' | 'Cancelled' | 'Completed' | 'No-Show';
+  reason?: string;
+  decline_reason?: string;
+  created_at: string;
+}
+```
+
+### 6.5 Consent
+
+```typescript
+interface PatientConsent {
+  id: string;
+  patient_id: string;
+  consent_type: 'medical_records' | 'data_sharing' | 'treatment' | 'research';
+  status: 'granted' | 'revoked';
+  granted_at?: string;
+  revoked_at?: string;
+}
+```
+
+### 6.6 Audit Log
+
+```typescript
+interface AuditLog {
+  id: string;
+  user_id: string;
+  patient_id?: string;
+  action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'EXPORT';
+  resource: string;
+  resource_id?: string;
+  ip_address?: string;
+  details?: object;
+  created_at: string;
+}
+```
+
+---
+
+## 7. Security Features
+
+### 7.1 Authentication Security
+
+- Passwords must be minimum 8 characters
+- JWT tokens expire after 24 hours
+- OTP tokens (8-digit) expire after 10 minutes
+- Failed login attempts are rate-limited (10/15min)
+- Doctor accounts require admin approval
+
+### 7.2 Consent-Based Access (DEFAULT DENY)
+
+- Patient data is inaccessible by default
+- Explicit consent required for each data type
+- Consent can be revoked at any time
+- Revoking consent immediately blocks access
+- All consent changes logged in immutable history
+
+### 7.3 Audit Logging
+
+- All data access is logged
+- Logs are immutable (cannot be modified or deleted)
+- Patients can view who accessed their data
+- Tracks: user, action, resource, timestamp, IP
+
+### 7.4 Input Validation
+
+- All IDs validated as UUIDs
+- SQL injection prevented via parameterized queries
+- XSS prevented via output encoding
+- Type validation on all inputs
+
+### 7.5 Security Headers
+
+Implemented via Helmet middleware:
+- Content-Security-Policy
+- X-Frame-Options
+- X-Content-Type-Options
+- Strict-Transport-Security
+- X-XSS-Protection
+
+---
+
+## 8. Testing Guide
+
+### 8.1 Test Workflow
+
+1. **Register as Patient:**
+   - `POST /api/auth/register/initiate` with email/password
+   - `POST /api/auth/register/verify` with OTP and details
+
+2. **Login:**
+   - `POST /api/auth/login` to get JWT token
+
+3. **Grant Consent:**
+   - `POST /api/consent/grant` with `consent_type: medical_records`
+
+4. **Create Appointment:**
+   - `POST /api/appointments` with doctor and date
+
+5. **View Data:**
+   - `GET /api/appointments/me`
+   - `GET /api/visits/me`
+   - `GET /api/prescriptions/me`
+
+6. **Check Audit Logs:**
+   - `GET /api/audit/me` to see who accessed your data
+
+### 8.2 Doctor Workflow
+
+1. **Register as Doctor:**
+   - Same as patient but with `role: doctor`
+   - Wait for admin approval
+
+2. **Search Patients:**
+   - `GET /api/patients/search?q=name`
+
+3. **Create Visit Record:**
+   - `POST /api/visits` with patient_id and diagnosis
+
+4. **Create Prescription:**
+   - `POST /api/prescriptions` with medication details
+
+5. **Manage Appointments:**
+   - `GET /api/appointments/me`
+   - `PATCH /api/appointments/:id/status`
+
+### 8.3 Admin Workflow
+
+1. **View All Users:**
+   - `GET /api/admin/users`
+
+2. **Approve Doctor:**
+   - `POST /api/admin/approve/:id`
+
+3. **Ban/Unban User:**
+   - `POST /api/admin/ban/:id`
+   - `POST /api/admin/unban/:id`
+
+4. **View System Audit:**
+   - `GET /api/audit/all`
+
+---
+
+## Document Control
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0.0 | 2026-01-15 | API Team | Initial release |
+| 2.0.0 | 2026-03-11 | API Team | Added chatbot endpoints, updated consent flow, added doctor workflow |
+
+---
+
+**End of Document**
+
+*SecureHealthIMS API Documentation v2.0.0*
