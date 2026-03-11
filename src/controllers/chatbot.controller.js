@@ -474,16 +474,8 @@ async function executeDbQuery(args, userId, userRole) {
     // Role-based data scoping for sensitive tables
     if (userRole === 'patient') {
       if (['appointments', 'visits', 'prescriptions', 'medical_records'].includes(table)) {
-        // Patients can only see their own data — find their patient record first
-        const { data: patientRecord } = await supabase
-          .from('patients')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
-
-        if (patientRecord) {
-          query = query.eq('patient_id', patientRecord.id);
-        }
+        // appointments/visits/prescriptions/medical_records all store patient_id = users.id
+        query = query.eq('patient_id', userId);
       }
     }
 
